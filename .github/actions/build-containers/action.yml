@@ -1,0 +1,56 @@
+name: "Build Containers"
+description: "Build and optionally push containers"
+inputs:
+  docker_options:
+    description: "Docker build behavior"
+    required: false
+    default: "build_and_push"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install yq
+      shell: bash
+      run: |
+        if ! command -v yq >/dev/null 2>&1; then
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+        fi
+        yq --version
+
+    - name: Enable containerd snapshotter for Docker
+      shell: bash
+      run: |
+        set -euxo pipefail
+        sudo mkdir -p /etc/docker
+        printf '{ "features": { "containerd-snapshotter": true } }\n' | sudo tee /etc/docker/daemon.json
+        sudo systemctl restart docker
+        docker info || true
+        docker buildx ls || true
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+
+    - name: Set up Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Docker Hub
+      if: env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != ''
+      uses: docker/login-action@v3
+      with:
+        username: ${{ env.DOCKERHUB_USERNAME }}
+        password: ${{ env.DOCKERHUB_TOKEN }}
+
+    - name: Log in to Custom Registry
+      if: env.REGISTRY != '' && env.REGISTRY_USERNAME != '' && env.REGISTRY_PASSWORD != ''
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ env.REGISTRY_USERNAME }}
+        password: ${{ env.REGISTRY_PASSWORD }}
+
+    - name: Build containers
+      shell: bash
+      env:
+        DOCKER_OPTIONS: ${{ inputs.docker_options }}
+      run: scripts/build_containers.sh

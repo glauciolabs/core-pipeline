@@ -1,0 +1,151 @@
+name: "Deploy via Flux"
+description: "Deploy application using Azure Flux"
+inputs:
+  azure_credentials:
+    description: "Azure credentials JSON"
+    required: false
+    default: ""
+  sp_app_id:
+    description: "Service principal app id"
+    required: false
+    default: ""
+  sp_app_secret:
+    description: "Service principal secret"
+    required: false
+    default: ""
+  tenant_id:
+    description: "Azure tenant id"
+    required: false
+    default: ""
+  gitops_ssh_private_key:
+    description: "SSH key for private repo access"
+    required: false
+    default: ""
+  resource_group:
+    description: "Azure resource group"
+    required: true
+  cluster_name:
+    description: "Cluster name"
+    required: true
+  app_project:
+    description: "Flux app name"
+    required: true
+  namespace:
+    description: "Destination namespace"
+    required: true
+  repo_url:
+    description: "Git repo URL"
+    required: true
+  repo_tag:
+    description: "Git tag to deploy"
+    required: true
+  kustomization_path:
+    description: "Kustomization path"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Azure login
+      if: inputs.azure_credentials != ''
+      uses: azure/login@v2
+      with:
+        creds: ${{ inputs.azure_credentials }}
+
+    - name: Flux check app
+      id: flux_check
+      shell: bash
+      env:
+        SP_RG_DEVOPS_APP_ID: ${{ inputs.sp_app_id }}
+        SP_RG_DEVOPS_SECRET: ${{ inputs.sp_app_secret }}
+        TENANT_ID: ${{ inputs.tenant_id }}
+        RESOURCE_GROUP: ${{ inputs.resource_group }}
+        CLUSTER_NAME: ${{ inputs.cluster_name }}
+        APP_PROJECT: ${{ inputs.app_project }}
+      run: |
+        set -euo pipefail
+
+        if [[ -n "${SP_RG_DEVOPS_APP_ID}" && -n "${SP_RG_DEVOPS_SECRET}" && -n "${TENANT_ID}" ]]; then
+          az login --service-principal -u "${SP_RG_DEVOPS_APP_ID}" -p "${SP_RG_DEVOPS_SECRET}" --tenant "${TENANT_ID}"
+        fi
+
+        if az k8s-configuration flux kustomization list \
+            --resource-group "${RESOURCE_GROUP}" \
+            --cluster-name "${CLUSTER_NAME}" \
+            --name "${APP_PROJECT}" \
+            --cluster-type connectedClusters; then
+          echo "app_exists=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "app_exists=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Flux update app
+      if: steps.flux_check.outputs.app_exists == 'true'
+      shell: bash
+      env:
+        GITOPS_SSH_PRIVATE_KEY: ${{ inputs.gitops_ssh_private_key }}
+        RESOURCE_GROUP: ${{ inputs.resource_group }}
+        CLUSTER_NAME: ${{ inputs.cluster_name }}
+        APP_PROJECT: ${{ inputs.app_project }}
+        REPO_URL: ${{ inputs.repo_url }}
+        REPO_TAG: ${{ inputs.repo_tag }}
+        KUSTOMIZATION_PATH: ${{ inputs.kustomization_path }}
+      run: |
+        set -euo pipefail
+        ssh_args=()
+        if [[ -n "${GITOPS_SSH_PRIVATE_KEY}" ]]; then
+          key_file="/tmp/gitops_ssh_key"
+          printf '%s' "${GITOPS_SSH_PRIVATE_KEY}" > "${key_file}"
+          chmod 600 "${key_file}"
+          ssh_args+=(--ssh-private-key-file "${key_file}")
+        fi
+
+        az k8s-configuration flux update \
+          -g "${RESOURCE_GROUP}" \
+          -c "${CLUSTER_NAME}" \
+          -n "${APP_PROJECT}" \
+          -t connectedClusters \
+          -u "${REPO_URL}" \
+          --interval 3m \
+          --timeout 3m \
+          --no-wait \
+          --tag "${REPO_TAG}" \
+          "${ssh_args[@]}" \
+          --kustomization name=kustomization path="${KUSTOMIZATION_PATH}" prune=true retry_interval=3m timeout=3m sync_interval=3m force=true
+
+    - name: Flux create app
+      if: steps.flux_check.outputs.app_exists == 'false'
+      shell: bash
+      env:
+        GITOPS_SSH_PRIVATE_KEY: ${{ inputs.gitops_ssh_private_key }}
+        RESOURCE_GROUP: ${{ inputs.resource_group }}
+        CLUSTER_NAME: ${{ inputs.cluster_name }}
+        APP_PROJECT: ${{ inputs.app_project }}
+        NAMESPACE: ${{ inputs.namespace }}
+        REPO_URL: ${{ inputs.repo_url }}
+        REPO_TAG: ${{ inputs.repo_tag }}
+        KUSTOMIZATION_PATH: ${{ inputs.kustomization_path }}
+      run: |
+        set -euo pipefail
+        ssh_args=()
+        if [[ -n "${GITOPS_SSH_PRIVATE_KEY}" ]]; then
+          key_file="/tmp/gitops_ssh_key"
+          printf '%s' "${GITOPS_SSH_PRIVATE_KEY}" > "${key_file}"
+          chmod 600 "${key_file}"
+          ssh_args+=(--ssh-private-key-file "${key_file}")
+        fi
+
+        az k8s-configuration flux create \
+          -g "${RESOURCE_GROUP}" \
+          -c "${CLUSTER_NAME}" \
+          -n "${APP_PROJECT}" \
+          --namespace "${NAMESPACE}" \
+          -t connectedClusters \
+          --scope cluster \
+          -u "${REPO_URL}" \
+          --interval 3m \
+          --timeout 3m \
+          --no-wait \
+          --tag "${REPO_TAG}" \
+          "${ssh_args[@]}" \
+          --kustomization name=kustomization path="${KUSTOMIZATION_PATH}" prune=true retry_interval=3m timeout=3m sync_interval=3m force=true

@@ -1,0 +1,31 @@
+name: "Git Tag"
+description: "Create a git tag if missing"
+inputs:
+  repo_tag:
+    description: "Tag to create"
+    required: true
+  tag_exists:
+    description: "Whether tag already exists"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Create tag if missing
+      shell: bash
+      env:
+        REPO_TAG: ${{ inputs.repo_tag }}
+        TAG_EXISTS: ${{ inputs.tag_exists }}
+      run: |
+        if [[ "${TAG_EXISTS}" == "true" ]]; then
+          echo "Tag ${REPO_TAG} already exists. Skipping."
+          exit 0
+        fi
+
+        git config user.name "core-pipelines"
+        git config user.email "actions@github.com"
+
+        commit_message=$(git log --format=%B -n 1 | head -n 1)
+
+        git tag -a "${REPO_TAG}" -m "${commit_message}"
+        git push origin "${REPO_TAG}"

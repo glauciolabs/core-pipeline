@@ -1,0 +1,191 @@
+name: "Deploy via Argo CD"
+description: "Deploy application using Argo CD"
+inputs:
+  argocd_server:
+    description: "Argo CD API server"
+    required: true
+  argocd_token:
+    description: "Argo CD auth token"
+    required: true
+  gitops_ssh_private_key:
+    description: "SSH key for private repo access"
+    required: false
+    default: ""
+  repo_url:
+    description: "Git repo URL"
+    required: true
+  app_name:
+    description: "Application name"
+    required: true
+  app_project:
+    description: "Argo CD project"
+    required: true
+  cluster_url:
+    description: "Destination cluster API"
+    required: true
+  argocd_project_namespace:
+    description: "Namespace for Argo CD project"
+    required: true
+  environment:
+    description: "Environment name"
+    required: true
+  kustomization_path:
+    description: "Kustomization path"
+    required: true
+  namespace:
+    description: "Destination namespace"
+    required: true
+  repo_tag:
+    description: "Git tag to deploy"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install tools
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo apt-get update
+        sudo apt-get install -y curl git jq yq ca-certificates
+
+        arch_raw="$(uname -m)"
+        case "$arch_raw" in
+          x86_64) arch="amd64" ;;
+          aarch64) arch="arm64" ;;
+          armv7l) arch="armhf" ;;
+          *) arch="$arch_raw" ;;
+        esac
+
+        sudo curl -L -o /usr/local/bin/argocd "https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-${arch}"
+        sudo chmod +x /usr/local/bin/argocd
+
+    - name: Argo CD - ensure repo
+      shell: bash
+      env:
+        ARGOCD_SERVER: ${{ inputs.argocd_server }}
+        ARGOCD_TOKEN: ${{ inputs.argocd_token }}
+        GITOPS_SSH_PRIVATE_KEY: ${{ inputs.gitops_ssh_private_key }}
+        REPO_URL: ${{ inputs.repo_url }}
+        APP_NAME: ${{ inputs.app_name }}
+        APP_PROJECT: ${{ inputs.app_project }}
+      run: |
+        set -euo pipefail
+        ssh_args=()
+        if [[ -n "${GITOPS_SSH_PRIVATE_KEY}" ]]; then
+          key_file="/tmp/gitops_ssh_key"
+          printf '%s' "${GITOPS_SSH_PRIVATE_KEY}" > "${key_file}"
+          chmod 600 "${key_file}"
+          ssh_args+=(--ssh-private-key-path "${key_file}")
+        fi
+
+        repos_json=$(argocd repo --grpc-web list \
+          --server "${ARGOCD_SERVER}" \
+          --auth-token "${ARGOCD_TOKEN}" \
+          --insecure -o json)
+
+        if echo "$repos_json" | jq -r '.[].repo' | grep -x -- "${REPO_URL}"; then
+          echo "Repo already registered in Argo CD."
+        else
+          echo "Registering repo in Argo CD..."
+          argocd repo add "${REPO_URL}" \
+            --name "${APP_NAME}" \
+            --project "${APP_PROJECT}" \
+            --auth-token "${ARGOCD_TOKEN}" \
+            --grpc-web --insecure \
+            --server "${ARGOCD_SERVER}" \
+            "${ssh_args[@]}"
+        fi
+
+    - name: Argo CD - ensure project
+      shell: bash
+      env:
+        ARGOCD_SERVER: ${{ inputs.argocd_server }}
+        ARGOCD_TOKEN: ${{ inputs.argocd_token }}
+        APP_PROJECT: ${{ inputs.app_project }}
+        CLUSTER_URL: ${{ inputs.cluster_url }}
+        ARGOCD_PROJECT_NAMESPACE: ${{ inputs.argocd_project_namespace }}
+        REPO_URL: ${{ inputs.repo_url }}
+      run: |
+        set -euo pipefail
+        if argocd proj list --auth-token "${ARGOCD_TOKEN}" --grpc-web --insecure --server "${ARGOCD_SERVER}" -o json | jq -r '.[] | .metadata.name' | grep -x "${APP_PROJECT}"; then
+          echo "Project exists."
+        else
+          echo "Creating project ${APP_PROJECT}"
+          argocd proj create "${APP_PROJECT}" \
+            -d "${CLUSTER_URL}","${ARGOCD_PROJECT_NAMESPACE}" \
+            -s "${REPO_URL}" \
+            --auth-token "${ARGOCD_TOKEN}" \
+            --grpc-web \
+            --insecure \
+            --server "${ARGOCD_SERVER}" \
+            --allow-namespaced-resource '*/*' \
+            --allow-cluster-resource '*/*'
+        fi
+
+    - name: Argo CD - ensure app
+      shell: bash
+      env:
+        ARGOCD_SERVER: ${{ inputs.argocd_server }}
+        ARGOCD_TOKEN: ${{ inputs.argocd_token }}
+        APP_NAME: ${{ inputs.app_name }}
+        APP_PROJECT: ${{ inputs.app_project }}
+        ENVIRONMENT: ${{ inputs.environment }}
+        REPO_URL: ${{ inputs.repo_url }}
+        KUSTOMIZATION_PATH: ${{ inputs.kustomization_path }}
+        CLUSTER_URL: ${{ inputs.cluster_url }}
+        NAMESPACE: ${{ inputs.namespace }}
+        REPO_TAG: ${{ inputs.repo_tag }}
+      run: |
+        set -euo pipefail
+
+        app_full="${APP_NAME}-${ENVIRONMENT}"
+
+        if argocd app list --auth-token "${ARGOCD_TOKEN}" --grpc-web --insecure --server "${ARGOCD_SERVER}" -o json | jq -r '.[] | .metadata.name' | grep -x "${app_full}"; then
+          echo "App exists. Updating and syncing..."
+          argocd app set "${app_full}" \
+            --grpc-web --insecure \
+            --server "${ARGOCD_SERVER}" \
+            --path "${KUSTOMIZATION_PATH}" \
+            --dest-server "${CLUSTER_URL}" \
+            --dest-namespace "${NAMESPACE}" \
+            --revision "${REPO_TAG}" \
+            --project "${APP_PROJECT}" \
+            --sync-policy automated \
+            --auto-prune \
+            --self-heal \
+            --sync-retry-limit 4 \
+            --auth-token "${ARGOCD_TOKEN}"
+        else
+          echo "Creating app ${app_full}"
+          argocd app create "${app_full}" \
+            --repo "${REPO_URL}" \
+            --path "${KUSTOMIZATION_PATH}" \
+            --dest-server "${CLUSTER_URL}" \
+            --dest-namespace "${NAMESPACE}" \
+            --revision "${REPO_TAG}" \
+            --project "${APP_PROJECT}" \
+            --sync-policy automated \
+            --self-heal \
+            --auto-prune \
+            --sync-retry-limit 4 \
+            --sync-option CreateNamespace=true \
+            --insecure \
+            --grpc-web \
+            --server "${ARGOCD_SERVER}" \
+            --auth-token "${ARGOCD_TOKEN}" \
+            --set-finalizer \
+            --revision-history-limit 3
+        fi
+
+        argocd app sync "${app_full}" \
+          --grpc-web \
+          --insecure \
+          --server "${ARGOCD_SERVER}" \
+          --auth-token "${ARGOCD_TOKEN}" \
+          --revision "${REPO_TAG}" \
+          --project "${APP_PROJECT}" \
+          --prune \
+          --force \
+          --replace \
+          --timeout 200

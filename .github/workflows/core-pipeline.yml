@@ -129,21 +129,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install yq
-        run: |
-          if ! command -v yq >/dev/null 2>&1; then
-            sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-            sudo chmod +x /usr/local/bin/yq
-          fi
-          yq --version
-
-      - name: Extract info
+      - name: Extract build info
         id: extract
-        env:
-          NAMESPACE_OVERRIDE: ${{ inputs.namespace_override }}
-          KUSTOMIZATION_OVERLAY: ${{ inputs.kustomization_overlay }}
-          CLUSTER_PROD: ${{ secrets.CLUSTER_PROD }}
-        run: scripts/extract_info.sh
+        uses: ./.github/actions/extract-info
+        with:
+          namespace_override: ${{ inputs.namespace_override }}
+          kustomization_overlay: ${{ inputs.kustomization_overlay }}
+          cluster_prod: ${{ secrets.CLUSTER_PROD }}
 
   build-containers:
     name: Build Containers
@@ -162,48 +154,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install yq
-        run: |
-          if ! command -v yq >/dev/null 2>&1; then
-            sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-            sudo chmod +x /usr/local/bin/yq
-          fi
-          yq --version
-
-      - name: Enable containerd snapshotter for Docker
-        run: |
-          set -euxo pipefail
-          sudo mkdir -p /etc/docker
-          printf '{ "features": { "containerd-snapshotter": true } }\n' | sudo tee /etc/docker/daemon.json
-          sudo systemctl restart docker
-          docker info || true
-          docker buildx ls || true
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Docker Hub
-        if: secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != ''
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Log in to Custom Registry
-        if: secrets.REGISTRY != '' && secrets.REGISTRY_USERNAME != '' && secrets.REGISTRY_PASSWORD != ''
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ secrets.REGISTRY }}
-          username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}
-
       - name: Build containers
+        uses: ./.github/actions/build-containers
         env:
-          DOCKER_OPTIONS: ${{ inputs.docker_options }}
-        run: scripts/build_containers.sh
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          REGISTRY: ${{ secrets.REGISTRY }}
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        with:
+          docker_options: ${{ inputs.docker_options }}
 
   tag:
     name: Git Tag
@@ -220,23 +180,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Create tag if missing
-        env:
-          REPO_TAG: ${{ needs.extract-info.outputs.repo_tag }}
-          TAG_EXISTS: ${{ needs.extract-info.outputs.tag_exists }}
-        run: |
-          if [[ "${TAG_EXISTS}" == "true" ]]; then
-            echo "Tag ${REPO_TAG} already exists. Skipping."
-            exit 0
-          fi
-
-          git config user.name "core-pipelines"
-          git config user.email "actions@github.com"
-
-          commit_message=$(git log --format=%B -n 1 | head -n 1)
-
-          git tag -a "${REPO_TAG}" -m "${commit_message}"
-          git push origin "${REPO_TAG}"
+      - name: Tag repository
+        uses: ./.github/actions/git-tag
+        with:
+          repo_tag: ${{ needs.extract-info.outputs.repo_tag }}
+          tag_exists: ${{ needs.extract-info.outputs.tag_exists }}
 
   deploy-argocd:
     name: Deploy via Argo CD
@@ -254,159 +202,21 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Validate Argo CD secrets
-        env:
-          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
-          ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
-        run: |
-          if [[ -z "${ARGOCD_SERVER}" || -z "${ARGOCD_TOKEN}" ]]; then
-            echo "[ERROR] ARGOCD_SERVER and ARGOCD_TOKEN are required for Argo CD deploy."
-            exit 1
-          fi
-
-      - name: Install tools
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y curl git jq yq ca-certificates
-
-          arch_raw="$(uname -m)"
-          case "$arch_raw" in
-            x86_64) arch="amd64" ;;
-            aarch64) arch="arm64" ;;
-            armv7l) arch="armhf" ;;
-            *) arch="$arch_raw" ;;
-          esac
-
-          sudo curl -L -o /usr/local/bin/argocd "https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-${arch}"
-          sudo chmod +x /usr/local/bin/argocd
-
-      - name: Argo CD - ensure repo
-        env:
-          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
-          ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
-          GITOPS_SSH_PRIVATE_KEY: ${{ secrets.GITOPS_SSH_PRIVATE_KEY }}
-          REPO_URL: ${{ needs.extract-info.outputs.repo_url }}
-          APP_NAME: ${{ needs.extract-info.outputs.app_name }}
-          APP_PROJECT: ${{ needs.extract-info.outputs.app_project }}
-        run: |
-          set -euo pipefail
-          ssh_args=()
-          if [[ -n "${GITOPS_SSH_PRIVATE_KEY}" ]]; then
-            key_file="/tmp/gitops_ssh_key"
-            printf '%s' "${GITOPS_SSH_PRIVATE_KEY}" > "${key_file}"
-            chmod 600 "${key_file}"
-            ssh_args+=(--ssh-private-key-path "${key_file}")
-          fi
-
-          repos_json=$(argocd repo --grpc-web list \
-            --server "${ARGOCD_SERVER}" \
-            --auth-token "${ARGOCD_TOKEN}" \
-            --insecure -o json)
-
-          if echo "$repos_json" | jq -r '.[].repo' | grep -x -- "${REPO_URL}"; then
-            echo "Repo already registered in Argo CD."
-          else
-            echo "Registering repo in Argo CD..."
-            argocd repo add "${REPO_URL}" \
-              --name "${APP_NAME}" \
-              --project "${APP_PROJECT}" \
-              --auth-token "${ARGOCD_TOKEN}" \
-              --grpc-web --insecure \
-              --server "${ARGOCD_SERVER}" \
-              "${ssh_args[@]}"
-          fi
-
-      - name: Argo CD - ensure project
-        env:
-          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
-          ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
-          APP_PROJECT: ${{ needs.extract-info.outputs.app_project }}
-          CLUSTER_URL: ${{ needs.extract-info.outputs.cluster_url }}
-          ARGOCD_PROJECT_NAMESPACE: ${{ needs.extract-info.outputs.argocd_project_namespace }}
-          REPO_URL: ${{ needs.extract-info.outputs.repo_url }}
-        run: |
-          set -euo pipefail
-          if argocd proj list --auth-token "${ARGOCD_TOKEN}" --grpc-web --insecure --server "${ARGOCD_SERVER}" -o json | jq -r '.[] | .metadata.name' | grep -x "${APP_PROJECT}"; then
-            echo "Project exists."
-          else
-            echo "Creating project ${APP_PROJECT}"
-            argocd proj create "${APP_PROJECT}" \
-              -d "${CLUSTER_URL}","${ARGOCD_PROJECT_NAMESPACE}" \
-              -s "${REPO_URL}" \
-              --auth-token "${ARGOCD_TOKEN}" \
-              --grpc-web \
-              --insecure \
-              --server "${ARGOCD_SERVER}" \
-              --allow-namespaced-resource '*/*' \
-              --allow-cluster-resource '*/*'
-          fi
-
-      - name: Argo CD - ensure app
-        env:
-          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
-          ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
-          APP_NAME: ${{ needs.extract-info.outputs.app_name }}
-          APP_PROJECT: ${{ needs.extract-info.outputs.app_project }}
-          ENVIRONMENT: ${{ needs.extract-info.outputs.environment }}
-          REPO_URL: ${{ needs.extract-info.outputs.repo_url }}
-          KUSTOMIZATION_PATH: ${{ needs.extract-info.outputs.kustomization_path }}
-          CLUSTER_URL: ${{ needs.extract-info.outputs.cluster_url }}
-          NAMESPACE: ${{ needs.extract-info.outputs.namespace }}
-          REPO_TAG: ${{ needs.extract-info.outputs.repo_tag }}
-        run: |
-          set -euo pipefail
-
-          app_full="${APP_NAME}-${ENVIRONMENT}"
-
-          if argocd app list --auth-token "${ARGOCD_TOKEN}" --grpc-web --insecure --server "${ARGOCD_SERVER}" -o json | jq -r '.[] | .metadata.name' | grep -x "${app_full}"; then
-            echo "App exists. Updating and syncing..."
-            argocd app set "${app_full}" \
-              --grpc-web --insecure \
-              --server "${ARGOCD_SERVER}" \
-              --path "${KUSTOMIZATION_PATH}" \
-              --dest-server "${CLUSTER_URL}" \
-              --dest-namespace "${NAMESPACE}" \
-              --revision "${REPO_TAG}" \
-              --project "${APP_PROJECT}" \
-              --sync-policy automated \
-              --auto-prune \
-              --self-heal \
-              --sync-retry-limit 4 \
-              --auth-token "${ARGOCD_TOKEN}"
-          else
-            echo "Creating app ${app_full}"
-            argocd app create "${app_full}" \
-              --repo "${REPO_URL}" \
-              --path "${KUSTOMIZATION_PATH}" \
-              --dest-server "${CLUSTER_URL}" \
-              --dest-namespace "${NAMESPACE}" \
-              --revision "${REPO_TAG}" \
-              --project "${APP_PROJECT}" \
-              --sync-policy automated \
-              --self-heal \
-              --auto-prune \
-              --sync-retry-limit 4 \
-              --sync-option CreateNamespace=true \
-              --insecure \
-              --grpc-web \
-              --server "${ARGOCD_SERVER}" \
-              --auth-token "${ARGOCD_TOKEN}" \
-              --set-finalizer \
-              --revision-history-limit 3
-          fi
-
-          argocd app sync "${app_full}" \
-            --grpc-web \
-            --insecure \
-            --server "${ARGOCD_SERVER}" \
-            --auth-token "${ARGOCD_TOKEN}" \
-            --revision "${REPO_TAG}" \
-            --project "${APP_PROJECT}" \
-            --prune \
-            --force \
-            --replace \
-            --timeout 200
+      - name: Deploy with Argo CD
+        uses: ./.github/actions/deploy-argocd
+        with:
+          argocd_server: ${{ secrets.ARGOCD_SERVER }}
+          argocd_token: ${{ secrets.ARGOCD_TOKEN }}
+          gitops_ssh_private_key: ${{ secrets.GITOPS_SSH_PRIVATE_KEY }}
+          repo_url: ${{ needs.extract-info.outputs.repo_url }}
+          app_name: ${{ needs.extract-info.outputs.app_name }}
+          app_project: ${{ needs.extract-info.outputs.app_project }}
+          cluster_url: ${{ needs.extract-info.outputs.cluster_url }}
+          argocd_project_namespace: ${{ needs.extract-info.outputs.argocd_project_namespace }}
+          environment: ${{ needs.extract-info.outputs.environment }}
+          kustomization_path: ${{ needs.extract-info.outputs.kustomization_path }}
+          namespace: ${{ needs.extract-info.outputs.namespace }}
+          repo_tag: ${{ needs.extract-info.outputs.repo_tag }}
 
   deploy-flux:
     name: Deploy via Flux
@@ -424,102 +234,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Azure login
-        if: secrets.AZURE_CREDENTIALS != ''
-        uses: azure/login@v2
+      - name: Deploy with Flux
+        uses: ./.github/actions/deploy-flux
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Flux check app
-        env:
-          SP_RG_DEVOPS_APP_ID: ${{ secrets.SP_RG_DEVOPS_APP_ID }}
-          SP_RG_DEVOPS_SECRET: ${{ secrets.SP_RG_DEVOPS_SECRET }}
-          TENANT_ID: ${{ secrets.TENANT_ID }}
-          GITOPS_SSH_PRIVATE_KEY: ${{ secrets.GITOPS_SSH_PRIVATE_KEY }}
-          RESOURCE_GROUP: ${{ needs.extract-info.outputs.resource_group }}
-          CLUSTER_NAME: ${{ needs.extract-info.outputs.cluster_name }}
-          APP_PROJECT: ${{ needs.extract-info.outputs.app_project }}
-        run: |
-          set -euo pipefail
-
-          if [[ -n "${SP_RG_DEVOPS_APP_ID}" && -n "${SP_RG_DEVOPS_SECRET}" && -n "${TENANT_ID}" ]]; then
-            az login --service-principal -u "${SP_RG_DEVOPS_APP_ID}" -p "${SP_RG_DEVOPS_SECRET}" --tenant "${TENANT_ID}"
-          fi
-
-          if az k8s-configuration flux kustomization list \
-              --resource-group "${RESOURCE_GROUP}" \
-              --cluster-name "${CLUSTER_NAME}" \
-              --name "${APP_PROJECT}" \
-              --cluster-type connectedClusters; then
-            echo "app_exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "app_exists=false" >> "$GITHUB_OUTPUT"
-          fi
-        id: flux_check
-
-      - name: Flux update app
-        if: steps.flux_check.outputs.app_exists == 'true'
-        env:
-          GITOPS_SSH_PRIVATE_KEY: ${{ secrets.GITOPS_SSH_PRIVATE_KEY }}
-          RESOURCE_GROUP: ${{ needs.extract-info.outputs.resource_group }}
-          CLUSTER_NAME: ${{ needs.extract-info.outputs.cluster_name }}
-          APP_PROJECT: ${{ needs.extract-info.outputs.app_project }}
-          REPO_URL: ${{ needs.extract-info.outputs.repo_url }}
-          REPO_TAG: ${{ needs.extract-info.outputs.repo_tag }}
-          KUSTOMIZATION_PATH: ${{ needs.extract-info.outputs.kustomization_path }}
-        run: |
-          set -euo pipefail
-          ssh_args=()
-          if [[ -n "${GITOPS_SSH_PRIVATE_KEY}" ]]; then
-            key_file="/tmp/gitops_ssh_key"
-            printf '%s' "${GITOPS_SSH_PRIVATE_KEY}" > "${key_file}"
-            chmod 600 "${key_file}"
-            ssh_args+=(--ssh-private-key-file "${key_file}")
-          fi
-          az k8s-configuration flux update \
-            -g "${RESOURCE_GROUP}" \
-            -c "${CLUSTER_NAME}" \
-            -n "${APP_PROJECT}" \
-            -t connectedClusters \
-            -u "${REPO_URL}" \
-            --interval 3m \
-            --timeout 3m \
-            --no-wait \
-            --tag "${REPO_TAG}" \
-            "${ssh_args[@]}" \
-            --kustomization name=kustomization path="${KUSTOMIZATION_PATH}" prune=true retry_interval=3m timeout=3m sync_interval=3m force=true
-
-      - name: Flux create app
-        if: steps.flux_check.outputs.app_exists == 'false'
-        env:
-          GITOPS_SSH_PRIVATE_KEY: ${{ secrets.GITOPS_SSH_PRIVATE_KEY }}
-          RESOURCE_GROUP: ${{ needs.extract-info.outputs.resource_group }}
-          CLUSTER_NAME: ${{ needs.extract-info.outputs.cluster_name }}
-          APP_PROJECT: ${{ needs.extract-info.outputs.app_project }}
-          NAMESPACE: ${{ needs.extract-info.outputs.namespace }}
-          REPO_URL: ${{ needs.extract-info.outputs.repo_url }}
-          REPO_TAG: ${{ needs.extract-info.outputs.repo_tag }}
-          KUSTOMIZATION_PATH: ${{ needs.extract-info.outputs.kustomization_path }}
-        run: |
-          set -euo pipefail
-          ssh_args=()
-          if [[ -n "${GITOPS_SSH_PRIVATE_KEY}" ]]; then
-            key_file="/tmp/gitops_ssh_key"
-            printf '%s' "${GITOPS_SSH_PRIVATE_KEY}" > "${key_file}"
-            chmod 600 "${key_file}"
-            ssh_args+=(--ssh-private-key-file "${key_file}")
-          fi
-          az k8s-configuration flux create \
-            -g "${RESOURCE_GROUP}" \
-            -c "${CLUSTER_NAME}" \
-            -n "${APP_PROJECT}" \
-            --namespace "${NAMESPACE}" \
-            -t connectedClusters \
-            --scope cluster \
-            -u "${REPO_URL}" \
-            --interval 3m \
-            --timeout 3m \
-            --no-wait \
-            --tag "${REPO_TAG}" \
-            "${ssh_args[@]}" \
-            --kustomization name=kustomization path="${KUSTOMIZATION_PATH}" prune=true retry_interval=3m timeout=3m sync_interval=3m force=true
+          azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
+          sp_app_id: ${{ secrets.SP_RG_DEVOPS_APP_ID }}
+          sp_app_secret: ${{ secrets.SP_RG_DEVOPS_SECRET }}
+          tenant_id: ${{ secrets.TENANT_ID }}
+          gitops_ssh_private_key: ${{ secrets.GITOPS_SSH_PRIVATE_KEY }}
+          resource_group: ${{ needs.extract-info.outputs.resource_group }}
+          cluster_name: ${{ needs.extract-info.outputs.cluster_name }}
+          app_project: ${{ needs.extract-info.outputs.app_project }}
+          namespace: ${{ needs.extract-info.outputs.namespace }}
+          repo_url: ${{ needs.extract-info.outputs.repo_url }}
+          repo_tag: ${{ needs.extract-info.outputs.repo_tag }}
+          kustomization_path: ${{ needs.extract-info.outputs.kustomization_path }}
