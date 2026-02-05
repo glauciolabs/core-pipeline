@@ -1,0 +1,57 @@
+trigger:
+  branches:
+    include:
+      - production
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  - group: pipeline_secrets
+
+steps:
+- task: DownloadSecureFile@1
+  name: private_key_file
+  displayName: 'Download private key'
+  inputs:
+    secureFile: 'azure-devops-key-rsa-sha2-512'
+
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    workingDirectory: $(Build.Repository.LocalPath)
+    script: |
+      # Configurando o git para o repositório local
+      git config user.name "core-pipelines"
+      git config user.email "$(Build.RequestedForEmail)"
+
+      chmod 600 $(private_key_file.secureFilePath)
+
+      # Definindo a tag fixa
+      git_tag="v1.0.0"
+      commit_message=$(git log --format=%B -n 1 | head -n 1)
+      org_name=$(echo "$(System.CollectionUri)" | awk -F/ '{print $4}')
+      push_url="git@ssh.dev.azure.com:v3/$org_name/$(System.TeamProject)/$(Build.Repository.Name)"
+
+      # Wrapper para SSH usando a chave baixada
+      export GIT_SSH_COMMAND="ssh -i $(private_key_file.secureFilePath) -o StrictHostKeyChecking=no"
+
+      # Verificando se a tag já existe e sobrescrevendo se necessário
+      if git tag -l | grep -q "$git_tag"; then
+        echo "Tag $git_tag já existe. Sobrescrevendo..."
+        git tag -f -a "$git_tag" -m "$commit_message"
+        git push -f $push_url "$git_tag"
+      else
+        echo "Criando nova tag $git_tag..."
+        git tag -a "$git_tag" -m "$commit_message"
+        git push $push_url "$git_tag"
+      fi
+
+      rm -rf $(private_key_file.secureFilePath)
+
+      # Informações de depuração
+      echo "Tag: $git_tag"
+      echo "Mensagem do commit: $commit_message"
+      echo "Repositório: $(Build.Repository.Name)"
+      git log --pretty=oneline | head -n 1
+    displayName: "update tag"

@@ -1,0 +1,233 @@
+stages:
+- stage: "containers_build"
+  displayName: "containers build"
+  pool:
+    vmImage: 'ubuntu-latest'
+
+  jobs:
+  - job: containers_ops
+    displayName: "containers operations"
+
+    steps:
+    - template: /commons/extract_info.yml
+      parameters:
+        namespace_override: ${{ parameters.namespace_override }}
+        archetype: ${{ parameters.archetype }}
+        kustomization_overlay: ${{ parameters.kustomization_overlay }}
+
+    - task: Bash@3
+      name: enable_containerd
+      displayName: Enable containerd snapshotter for Docker
+      inputs:
+        targetType: 'inline'
+        script: |
+          set -euxo pipefail
+
+          echo "Configurando Docker para usar containerd-snapshotter..."
+          sudo mkdir -p /etc/docker
+          printf '{ "features": { "containerd-snapshotter": true } }\n' | sudo tee /etc/docker/daemon.json
+
+          echo "Reiniciando serviço docker..."
+          sudo systemctl restart docker
+
+          echo "docker info (checando image store / containerd)..."
+          docker info || true
+
+          echo "Builders atuais após restart:"
+          docker buildx ls || true
+
+    - task: Bash@3
+      name: enable_qemu
+      displayName: enable qemu for multi-arch
+      inputs:
+        targetType: 'inline'
+        script: |
+          set -euxo pipefail
+
+          echo "Registrando binfmt (multi-arch via qemu-user-static)..."
+          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+
+          echo "Builders disponíveis:"
+          docker buildx ls || true
+
+    - task: Docker@2
+      displayName: docker login
+      inputs:
+        containerRegistry: 'Dockerhub'
+        command: 'login'
+
+    - ${{ if ne(parameters.docker_options, 'disable') }}:
+      - task: Bash@3
+        displayName: build containers from container/*
+        inputs:
+          targetType: 'inline'
+          script: |
+            set -euo pipefail
+
+            ROOT_DIR="container"
+            DOCKER_OPTIONS="${{ parameters.docker_options }}"
+
+            echo "Docker options: ${DOCKER_OPTIONS}"
+            echo "Procurando imagens em: ${ROOT_DIR}"
+
+            if [ ! -d "${ROOT_DIR}" ]; then
+              echo "Diretório ${ROOT_DIR} não encontrado. Nada para buildar."
+              exit 0
+            fi
+
+            echo "Builders visíveis no início do build:"
+            docker buildx ls || true
+
+            for dir in "${ROOT_DIR}"/*; do
+              [ -d "${dir}" ] || continue
+
+              info_file="${dir}/info.yaml"
+              dockerfile_path="${dir}/Dockerfile"
+
+              if [ ! -f "${info_file}" ]; then
+                echo ">> [SKIP] ${dir} - não tem info.yaml"
+                continue
+              fi
+
+              if [ ! -f "${dockerfile_path}" ]; then
+                echo ">> [SKIP] ${dir} - não tem Dockerfile"
+                continue
+              fi
+
+              echo "========================================"
+              echo "Processando diretório: ${dir}"
+              echo "info.yaml: ${info_file}"
+              echo "Dockerfile: ${dockerfile_path}"
+
+              app_name=$(yq -r '.app.name' "${info_file}")
+              container_repository=$(yq -r '.app.container.repository' "${info_file}")
+              container_registry=$(yq -r '.app.container.registry' "${info_file}")
+              container_platform=$(yq -r '.app.container.platform // "linux/arm64,linux/amd64"' "${info_file}")
+              container_tag=$(yq -r '.app.container.tag' "${info_file}")
+              repo_tag=$(yq -r '.app.version' "${info_file}")
+
+              echo "app_name: ${app_name}"
+              echo "container_repository: ${container_repository}"
+              echo "container_registry: ${container_registry}"
+              echo "container_platform: ${container_platform}"
+              echo "container_tag: ${container_tag}"
+              echo "repo_tag: ${repo_tag}"
+
+              if [ -z "${container_repository}" ] || [ -z "${container_tag}" ]; then
+                echo ">> [SKIP] ${dir} - container_repository ou container_tag vazio."
+                continue
+              fi
+
+              image_ref="${container_repository}:${container_tag}"
+
+              platforms_raw="${container_platform}"
+              IFS=',' read -ra PLATFORMS <<< "${platforms_raw}"
+
+              platforms_trimmed=()
+              for p in "${PLATFORMS[@]}"; do
+                plat="$(echo "${p}" | xargs)"
+                [ -n "${plat}" ] && platforms_trimmed+=("${plat}")
+              done
+
+              ordered_platforms=()
+              if printf '%s\n' "${platforms_trimmed[@]}" | grep -Fxq "linux/arm64"; then
+                ordered_platforms+=("linux/arm64")
+              fi
+              if printf '%s\n' "${platforms_trimmed[@]}" | grep -Fxq "linux/amd64"; then
+                ordered_platforms+=("linux/amd64")
+              fi
+              for plat in "${platforms_trimmed[@]}"; do
+                if [ "${plat}" != "linux/arm64" ] && [ "${plat}" != "linux/amd64" ]; then
+                  ordered_platforms+=("${plat}")
+                fi
+              done
+
+              PLATFORMS=("${ordered_platforms[@]}")
+
+              if [ "${DOCKER_OPTIONS}" = "build_and_push" ]; then
+                echo "Verificando se a imagem ${image_ref} já existe..."
+                if docker manifest inspect "${image_ref}" > /dev/null 2>&1; then
+                  echo ">> [SKIP] Imagem ${image_ref} já existe. Pulando o build."
+                  continue
+                else
+                  echo ">> Imagem ${image_ref} NÃO existe. Iniciando build & push por plataforma..."
+                fi
+
+                arch_image_refs=()
+
+                for p in "${PLATFORMS[@]}"; do
+                  plat="$(echo "${p}" | xargs)"
+                  [ -z "${plat}" ] && continue
+
+                  arch="${plat#linux/}"
+                  arch_tag="${image_ref}-${arch}"
+
+                  echo "Verificando se a tag ${arch_tag} já existe..."
+                  if docker manifest inspect "${arch_tag}" > /dev/null 2>&1; then
+                    echo ">> [FAIL] Tag ${arch_tag} já existe. Não sobrescrever."
+                    exit 0
+                  fi
+
+                  echo ">> Build & push para plataforma: ${plat} (tag: ${arch_tag})"
+
+                  docker buildx build \
+                    --platform "${plat}" \
+                    -t "${arch_tag}" \
+                    -f "${dockerfile_path}" "${ROOT_DIR}" \
+                    --push
+
+                  if [ $? -ne 0 ]; then
+                    echo "Erro ao construir a imagem Docker para ${arch_tag}."
+                    exit 1
+                  fi
+
+                  arch_image_refs+=("${arch_tag}")
+                done
+
+                echo "Criando manifest multi-arch para ${image_ref} a partir das tags:"
+                printf '  - %s\n' "${arch_image_refs[@]}"
+
+                docker buildx imagetools create \
+                  -t "${image_ref}" \
+                  "${arch_image_refs[@]}"
+
+                if [ $? -ne 0 ]; then
+                  echo "Erro ao criar manifest multi-arch para ${image_ref}."
+                  exit 1
+                else
+                  echo "Imagem multi-arch ${image_ref} criada com sucesso."
+                fi
+
+              elif [ "${DOCKER_OPTIONS}" = "build_only" ]; then
+                echo "Executando build_only (sem push) para ${image_ref}..."
+
+                first_plat="$(echo "${container_platform}" | cut -d',' -f1 | xargs)"
+
+                echo "
+                docker buildx build \\
+                  --platform ${first_plat} \\
+                  -t ${image_ref} \\
+                  -f ${dockerfile_path} ${ROOT_DIR} --load
+                "
+
+                docker buildx build \
+                  --platform "${first_plat}" \
+                  -t "${image_ref}" \
+                  -f "${dockerfile_path}" "${ROOT_DIR}" \
+                  --load
+
+                if [ $? -ne 0 ]; then
+                  echo "Erro ao construir a imagem Docker (build_only) para ${image_ref}."
+                  exit 1
+                else
+                  echo "Imagem Docker ${image_ref} construída localmente (sem push)."
+                fi
+
+              else
+                echo ">> [SKIP] docker_options='${DOCKER_OPTIONS}' não tratado neste template."
+              fi
+
+            done
+
+            echo "========================================"
+            echo "🎉 Loop de build finalizado."

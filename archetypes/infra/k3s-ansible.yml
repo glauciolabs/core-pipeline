@@ -1,0 +1,117 @@
+stages:
+  - stage: k3s_operation_stage
+    displayName: ' ${{ parameters.k3s_operation }} k3s'
+    jobs:
+      - job: k3s_operation_job
+        displayName: ' ${{ parameters.k3s_operation }} k3s with ansible'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+
+          - task: DownloadSecureFile@1
+            name: private_key_file
+            displayName: 'Download private key'
+            inputs:
+              secureFile: 'id_rsa'
+
+          - script: |
+              [[ -f $(private_key_file.secureFilePath) ]] && chmod 600 $(private_key_file.secureFilePath) || echo "No private key file to remove"
+            displayName: 'set permissions to private key'
+
+          - script: |
+              format_ips() {
+                  local ips="$1"
+                  local formatted_ips=""
+                  IFS=',' read -ra ADDR <<< "$ips"
+                  for ip in "${ADDR[@]}"; do
+                      i=$((i+1))
+                      var_name="hidden_var_$i"
+                      formatted_ips+="        $ip:\n"
+                      echo "##vso[task.setvariable variable=$var_name;issecret=true]$ip"
+                  done
+                  echo -e "$formatted_ips"
+              }
+              
+              SERVER_IPS_CLEAN=$(echo "$K3S_SERVER_IPS" | tr -d ' ')
+              AGENT_IPS_CLEAN=$(echo "$K3S_AGENT_IPS" | tr -d ' ')
+              
+              SERVER_IPS_FORMATTED=$(format_ips "$SERVER_IPS_CLEAN")
+              AGENT_IPS_FORMATTED=$(format_ips "$AGENT_IPS_CLEAN")
+              
+              cat > inventory.tmp.yml <<EOF
+              ---
+              k3s_cluster:
+                children:
+                  server:
+                    hosts:
+              $SERVER_IPS_FORMATTED
+                  agent:
+                    hosts:
+              $AGENT_IPS_FORMATTED
+              
+                vars:
+                  ansible_port: \${K3S_ANSIBLE_PORT}
+                  ansible_user: \${K3S_ANSIBLE_USER}
+                  k3s_version: \${K3S_VERSION}
+                  token: "\${K3S_TOKEN}"
+                  api_endpoint: "{{ hostvars[groups['server'][0]]['ansible_host'] | default(groups['server'][0]) }}"
+                  use_external_database: \${K3S_USE_EXTERNAL_DATABASE}
+                  extra_server_args: "--datastore-endpoint=\${K3S_DATASTORE_ENDPOINT} --vpn-auth=name=tailscale,joinKey=\${K3S_TAILSCALE_AUTH_KEY} --flannel-backend=wireguard-native --flannel-external-ip \${K3S_TLS_SAN_IPS} --node-external-ip={{ k3s_external_ip.stdout }}"
+                  extra_agent_args: "--vpn-auth=name=tailscale,joinKey=\${K3S_TAILSCALE_AUTH_KEY} --node-external-ip={{ k3s_external_ip.stdout }}"
+                  cluster_context: \${K3S_CLUSTER_CONTEXT}
+              EOF
+            displayName: 'replace IPs in inventory'
+            env:
+              K3S_SERVER_IPS: $(k3s_server_ips)
+              K3S_AGENT_IPS: $(k3s_agent_ips)
+
+
+
+          - script: |
+              export K3S_ANSIBLE_PORT K3S_ANSIBLE_USER K3S_VERSION K3S_TOKEN K3S_API_ENDPOINT K3S_USE_EXTERNAL_DATABASE K3S_CLUSTER_CONTEXT K3S_TAILSCALE_AUTH_KEY K3S_TLS_SAN_IPS K3S_DATASTORE_ENDPOINT
+
+              envsubst < inventory.tmp.yml > inventory.yml
+              
+              [[  ${{ parameters.k3s_operation }} == 'true' ]] && k3s_operation="true" || k3s_operation="false"
+              echo "##vso[task.setvariable variable=k3s_operation]$k3s_operation"
+              cat inventory.yml
+            displayName: 'set env vars'
+            env:
+              K3S_ANSIBLE_PORT: $(k3s_ansible_port)
+              K3S_ANSIBLE_USER: $(k3s_ansible_user)
+              K3S_VERSION: $(k3s_version)
+              K3S_TOKEN: $(k3s_token)
+              K3S_API_ENDPOINT: $(k3s_api_endpoint)
+              K3S_USE_EXTERNAL_DATABASE: $(k3s_use_external_database)
+              K3S_CLUSTER_CONTEXT: $(k3s_cluster_context)
+              K3S_TAILSCALE_AUTH_KEY: $(k3s_tailscale_key)
+              K3S_TLS_SAN_IPS: $(k3s_tls_san_ips)    
+              K3S_DATASTORE_ENDPOINT: $(k3s_datastore_endpoint)
+
+          - script: |
+              [[  "${{ parameters.ansible_dry_run }}" == 'true' ]] && ansible_dry_run="--check" || ansible_dry_run=""
+              [[  "${{ parameters.k3s_operation }}" == 'install' ]] && operation_file="site.yml"
+              [[  "${{ parameters.k3s_operation }}" == 'uninstall' ]] && operation_file="reset.yml"
+
+              ansible-playbook -i inventory.yml playbooks/$operation_file --private-key $(private_key_file.secureFilePath) $ansible_dry_run
+            displayName: ' ${{ parameters.k3s_operation }} k3s with ansible'
+            env:
+              K3S_ANSIBLE_PORT: $(k3s_ansible_port)
+              K3S_ANSIBLE_USER: $(k3s_ansible_user)
+              K3S_VERSION: $(k3s_version)
+              K3S_TOKEN: $(k3s_token)
+              K3S_API_ENDPOINT: $(k3s_api_endpoint)
+              K3S_USE_EXTERNAL_DATABASE: $(k3s_use_external_database)
+              K3S_CLUSTER_CONTEXT: $(k3s_cluster_context)
+              K3S_TAILSCALE_AUTH_KEY: $(k3s_tailscale_key)
+              K3S_TLS_SAN_IPS: $(k3s_tls_san_ips)    
+              K3S_DATASTORE_ENDPOINT: $(k3s_datastore_endpoint)
+
+          - script: |
+              [[ -f $(private_key_file.secureFilePath) ]] && rm $(private_key_file.secureFilePath) || echo "No private key file to remove"
+              [[ -f inventory.yml ]] && rm -rf inventory.yml || echo "No inventory file to remove"
+              [[ -f inventory.tmp.yml ]] && rm -rf inventory.tmp.yml || echo "No inventory.tmp file to remove"
+            condition: always()
+            displayName: 'clean files'
+

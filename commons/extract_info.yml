@@ -1,0 +1,115 @@
+steps:
+- task: DownloadSecureFile@1
+  name: download_private_key_file
+  displayName: 'Download private key'
+  inputs:
+    secureFile: 'azure-devops-key-rsa-sha2-512'
+
+- task: Bash@3
+  displayName: extract info
+  condition: succeeded()
+  inputs:
+    targetType: 'inline'
+    script: |
+      org_name=$(echo "$(System.CollectionUri)" | awk -F/ '{print $4}')
+      app_name=$(yq -r '.app.name' info.yaml)
+      app_project=$(yq -r '.app.project' info.yaml)
+      namespace=$(yq -r '.app.namespace' info.yaml)
+      namespace_override="${{ parameters.namespace_override }}"
+      repo_tag=$(yq -r '.app.version' info.yaml)
+      repo_url="git@ssh.dev.azure.com:v3/$org_name/$(System.TeamProject)/$(Build.Repository.Name)"
+      commit_id=$(git rev-parse --short HEAD)
+      last_tag="$(git describe --tags --abbrev=0 2>/dev/null || echo "")"
+      last_tag_prefix=$(echo "$last_tag" | cut -d'-' -f1)
+      all_tags="$(git tag)"
+      tag_exists=false
+
+      git config user.name "core-pipelines"
+      git config user.email "$(Build.RequestedForEmail)"
+
+      chmod 600 $(download_private_key_file.secureFilePath)
+      export GIT_SSH_COMMAND="ssh -i $(download_private_key_file.secureFilePath) -o StrictHostKeyChecking=no"
+
+      cluster_url="$(CLUSTER_PROD)"
+
+      if [[ "$(Build.SourceBranch)" == "refs/heads/develop" ]]; then           
+        echo "Identificado ambiente development"
+        environment="develop"
+        flux_cluster_name="k8s-develop-cluster"
+      elif [[ "$(Build.SourceBranch)" == "refs/heads/production" ]]; then
+        echo "Identificado ambiente production"
+        environment="production"
+        flux_cluster_name="k8s-production-cluster"
+      else
+        echo "Nenhum ambiente identificado"
+        echo "Ambiente inválido para branch:"
+        echo "$(Build.SourceBranch)"
+        environment="null"
+        cluster_url="null"
+        flux_cluster_name="null"
+        exit 1
+      fi
+
+      git fetch --tags --force
+      full_tag_name="${repo_tag}-${commit_id}-${environment}"
+
+      echo "Versão base do info.yaml: $repo_tag"
+      echo "Nome completo da tag a ser verificada: $full_tag_name"
+      echo
+
+      if git tag -l | grep -Fxq "$full_tag_name"; then
+          echo "VERIFICADO: A tag exata '$full_tag_name' já existe. Etapa de tagging será pulada."
+          tag_exists=true
+      else
+          echo "VERIFICADO: A tag exata '$full_tag_name' não foi encontrada. Será criada na próxima etapa."
+          tag_exists=false
+      fi
+
+      kustomization_path="./app/$environment"
+
+      [[ ${{ parameters.kustomization_overlay }} == "true" ]] && kustomization_path="./app/$environment/overlays"
+      resource_group="rg-devops"
+      
+      if [[ "$namespace_override" == "true" ]]; then
+        echo "Namespace override is enabled"
+        namespace_environment="$namespace"
+        argocd_project_namespace="$namespace"
+      else
+        echo "Namespace override is disabled"
+        namespace_environment="$namespace-$environment"
+        argocd_project_namespace="$namespace-$environment"
+      fi
+
+      echo "##vso[task.setvariable variable=org_name;]$org_name"
+      echo "##vso[task.setvariable variable=app_name;]$app_name"
+      echo "##vso[task.setvariable variable=repo_tag;]$repo_tag-$commit_id-$environment"
+      echo "##vso[task.setvariable variable=app_project;]$app_project"
+      echo "##vso[task.setvariable variable=environment;]$environment"
+      echo "##vso[task.setvariable variable=repo_url;]$repo_url"
+      echo "##vso[task.setvariable variable=cluster_url;]$cluster_url"
+      echo "##vso[task.setvariable variable=argocd_project_namespace;]$argocd_project_namespace"
+      echo "##vso[task.setvariable variable=namespace;]$namespace_environment"
+      echo "##vso[task.setvariable variable=tag_exists;]$tag_exists"
+      echo "##vso[task.setvariable variable=kustomization_path;]$kustomization_path"
+      echo "##vso[task.setvariable variable=resource_group;issecret=true;]$resource_group"
+      echo "##vso[task.setvariable variable=cluster_name;]$flux_cluster_name"
+
+
+      echo "DEBUG VARS:"
+      echo "org_name: $org_name"
+      echo "app_name: $app_name"
+      echo "app_project: $app_project"
+      echo "repo_tag: $repo_tag"
+      echo "environment: $environment"
+      echo "namespace_override: $namespace_override"
+      echo "repo_url: $repo_url"
+      echo "namespace: $namespace_environment"
+      echo "cluster_url: $cluster_url"
+      echo "tag_exists: $tag_exists"
+      echo
+      echo "argocd_project_namespace: $namespace"
+      echo
+
+      echo "FLUXCD"
+      echo "kustomization_path: $kustomization_path"
+      echo "flux_cluster_name: $flux_cluster_name"
