@@ -35,7 +35,6 @@ on:
         type: choice
         options:
           - argocd
-          - flux
         default: argocd
       argocd_deployment_mode:
         description: "Argo CD deployment mode"
@@ -99,15 +98,9 @@ on:
         required: false
       GITOPS_SSH_PRIVATE_KEY:
         required: false
-      CLUSTER_PROD:
+      CLUSTER_DEVELOP:
         required: false
-      AZURE_CREDENTIALS:
-        required: false
-      SP_RG_DEVOPS_APP_ID:
-        required: false
-      SP_RG_DEVOPS_SECRET:
-        required: false
-      TENANT_ID:
+      CLUSTER_PRODUCTION:
         required: false
 
 permissions:
@@ -154,7 +147,8 @@ jobs:
         with:
           namespace_override: ${{ inputs.namespace_override }}
           kustomization_overlay: ${{ inputs.kustomization_overlay }}
-          cluster_prod: ${{ secrets.CLUSTER_PROD }}
+          cluster_develop: ${{ secrets.CLUSTER_DEVELOP }}
+          cluster_production: ${{ secrets.CLUSTER_PRODUCTION }}
 
   build-containers:
     name: Build Containers
@@ -238,35 +232,3 @@ jobs:
           repo_tag: ${{ needs.extract-info.outputs.repo_tag }}
           deployment_mode: ${{ inputs.argocd_deployment_mode }}
           application_manifest_path: ${{ inputs.argocd_application_manifest }}
-
-  deploy-flux:
-    name: Deploy via Flux
-    runs-on: ubuntu-latest
-    needs: [extract-info, tag]
-    if: >-
-      ${{
-        inputs.gitops_app == 'flux'
-        && needs.extract-info.result == 'success'
-        && (needs.tag.result == 'success' || needs.tag.result == 'skipped')
-      }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Deploy with Flux
-        uses: ./.github/actions/deploy-flux
-        with:
-          azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
-          sp_app_id: ${{ secrets.SP_RG_DEVOPS_APP_ID }}
-          sp_app_secret: ${{ secrets.SP_RG_DEVOPS_SECRET }}
-          tenant_id: ${{ secrets.TENANT_ID }}
-          gitops_ssh_private_key: ${{ secrets.GITOPS_SSH_PRIVATE_KEY }}
-          resource_group: ${{ needs.extract-info.outputs.resource_group }}
-          cluster_name: ${{ needs.extract-info.outputs.cluster_name }}
-          app_project: ${{ needs.extract-info.outputs.app_project }}
-          namespace: ${{ needs.extract-info.outputs.namespace }}
-          repo_url: ${{ needs.extract-info.outputs.repo_url }}
-          repo_tag: ${{ needs.extract-info.outputs.repo_tag }}
-          kustomization_path: ${{ needs.extract-info.outputs.kustomization_path }}

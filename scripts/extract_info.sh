@@ -63,7 +63,15 @@ else
   argocd_project_namespace="${namespace}-${environment}"
 fi
 
-cluster_url="${CLUSTER_PROD:-}"
+cluster_url=""
+case "${environment}" in
+  develop)
+    cluster_url="${CLUSTER_DEVELOP:-}"
+    ;;
+  production)
+    cluster_url="${CLUSTER_PRODUCTION:-}"
+    ;;
+esac
 
 {
   echo "org_name=${org_name}"

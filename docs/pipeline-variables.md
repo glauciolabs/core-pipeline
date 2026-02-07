@@ -12,7 +12,7 @@
 - `helm_chart` (boolean)
   - Reserved for future use
 - `gitops_app` (string)
-  - `argocd` or `flux`
+  - `argocd`
 - `argocd_deployment_mode` (string)
   - `kustomize` or `application`
 - `argocd_application_manifest` (string)
@@ -28,8 +28,7 @@
 - `GITOPS_SSH_PRIVATE_KEY`
   - SSH key used by Argo CD/Flux to read the Git repository (recommended for private repos)
 - `CLUSTER_PROD`
-  - Cluster API endpoint used by Argo CD
-- `AZURE_CREDENTIALS`
-  - Azure login JSON (required for `gitops_app: flux` unless using SP_* vars)
-- `SP_RG_DEVOPS_APP_ID`, `SP_RG_DEVOPS_SECRET`, `TENANT_ID`
-  - Azure service principal credentials (optional alternative to `AZURE_CREDENTIALS`)
+- `CLUSTER_DEVELOP`
+  - Cluster API endpoint for `develop`
+- `CLUSTER_PRODUCTION`
+  - Cluster API endpoint for `production`

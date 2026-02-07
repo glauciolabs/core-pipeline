@@ -53,36 +53,8 @@ jobs:
       ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
       ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
       GITOPS_SSH_PRIVATE_KEY: ${{ secrets.GITOPS_SSH_PRIVATE_KEY }}
-      CLUSTER_PROD: ${{ secrets.CLUSTER_PROD }}
-```
-
-## Example (k8s-apps + Flux)
-```yaml
-name: CD
-
-on:
-  push:
-    branches:
-      - develop
-      - production
-
-jobs:
-  pipeline:
-    uses: SpartanOps/core-pipelines/.github/workflows/core-pipeline.yml@v1.0.0
-    with:
-      archetype: k8s-apps
-      gitops_app: flux
-      kustomization_overlay: false
-      namespace_override: false
-      argocd_deployment_mode: kustomize
-      argocd_application_manifest: ""
-    secrets:
-      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
-      SP_RG_DEVOPS_APP_ID: ${{ secrets.SP_RG_DEVOPS_APP_ID }}
-      SP_RG_DEVOPS_SECRET: ${{ secrets.SP_RG_DEVOPS_SECRET }}
-      TENANT_ID: ${{ secrets.TENANT_ID }}
-      GITOPS_SSH_PRIVATE_KEY: ${{ secrets.GITOPS_SSH_PRIVATE_KEY }}
-      CLUSTER_PROD: ${{ secrets.CLUSTER_PROD }}
+      CLUSTER_DEVELOP: ${{ secrets.CLUSTER_DEVELOP }}
+      CLUSTER_PRODUCTION: ${{ secrets.CLUSTER_PRODUCTION }}
 ```
 
 ## Notes
