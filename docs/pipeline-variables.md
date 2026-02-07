@@ -13,6 +13,10 @@
   - Reserved for future use
 - `gitops_app` (string)
   - `argocd` or `flux`
+- `argocd_deployment_mode` (string)
+  - `kustomize` or `application`
+- `argocd_application_manifest` (string)
+  - Path to an Argo CD Application manifest file (used when `argocd_deployment_mode=application`)
 
 ## Secrets
 - `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`

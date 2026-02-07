@@ -37,6 +37,17 @@ on:
           - argocd
           - flux
         default: argocd
+      argocd_deployment_mode:
+        description: "Argo CD deployment mode"
+        type: choice
+        options:
+          - kustomize
+          - application
+        default: kustomize
+      argocd_application_manifest:
+        description: "Path to Argo CD Application manifest"
+        type: string
+        default: ""
   workflow_call:
     inputs:
       archetype:
@@ -63,6 +74,14 @@ on:
         description: "GitOps engine"
         type: string
         default: argocd
+      argocd_deployment_mode:
+        description: "Argo CD deployment mode"
+        type: string
+        default: kustomize
+      argocd_application_manifest:
+        description: "Path to Argo CD Application manifest"
+        type: string
+        default: ""
     secrets:
       DOCKERHUB_USERNAME:
         required: false
@@ -217,6 +236,8 @@ jobs:
           kustomization_path: ${{ needs.extract-info.outputs.kustomization_path }}
           namespace: ${{ needs.extract-info.outputs.namespace }}
           repo_tag: ${{ needs.extract-info.outputs.repo_tag }}
+          deployment_mode: ${{ inputs.argocd_deployment_mode }}
+          application_manifest_path: ${{ inputs.argocd_application_manifest }}
 
   deploy-flux:
     name: Deploy via Flux

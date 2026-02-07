@@ -41,6 +41,8 @@ jobs:
       kustomization_overlay: false
       helm_chart: false
       gitops_app: argocd
+      argocd_deployment_mode: kustomize
+      argocd_application_manifest: ""
       namespace_override: false
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -72,6 +74,8 @@ jobs:
       gitops_app: flux
       kustomization_overlay: false
       namespace_override: false
+      argocd_deployment_mode: kustomize
+      argocd_application_manifest: ""
     secrets:
       AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
       SP_RG_DEVOPS_APP_ID: ${{ secrets.SP_RG_DEVOPS_APP_ID }}
