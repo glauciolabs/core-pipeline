@@ -35,6 +35,14 @@ case "${GITHUB_REF_NAME:-}" in
     environment="production"
     cluster_name="k8s-production-cluster"
     ;;
+  master)
+    environment="production"
+    cluster_name="k8s-production-cluster"
+    ;;
+  attempt-1)
+    environment="develop"
+    cluster_name="k8s-develop-cluster"
+    ;;
   *)
     echo "[ERROR] Unsupported branch: ${GITHUB_REF_NAME:-unknown}"
     exit 1
