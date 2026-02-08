@@ -3,6 +3,14 @@ name: Core Pipeline
 on:
   workflow_dispatch:
     inputs:
+      pipeline_mode:
+        description: "Pipeline mode"
+        type: choice
+        options:
+          - build_and_push
+          - build_only
+          - deploy_only
+        default: build_and_push
       archetype:
         description: "Pipeline archetype"
         type: choice
@@ -10,14 +18,6 @@ on:
           - containers
           - k8s-apps
         default: containers
-      docker_options:
-        description: "Docker build behavior"
-        type: choice
-        options:
-          - build_and_push
-          - build_only
-          - disable_docker
-        default: build_and_push
       namespace_override:
         description: "Use app namespace without environment suffix"
         type: boolean
@@ -49,14 +49,14 @@ on:
         default: ""
   workflow_call:
     inputs:
+      pipeline_mode:
+        description: "Pipeline mode"
+        type: string
+        default: build_and_push
       archetype:
         description: "Pipeline archetype"
         type: string
         required: true
-      docker_options:
-        description: "Docker build behavior"
-        type: string
-        default: build_and_push
       namespace_override:
         description: "Use app namespace without environment suffix"
         type: boolean
@@ -115,9 +115,36 @@ defaults:
     shell: bash
 
 jobs:
+  resolve-options:
+    name: Resolve Options
+    runs-on: ubuntu-latest
+    outputs:
+      docker_options: ${{ steps.resolve.outputs.docker_options }}
+      run_build: ${{ steps.resolve.outputs.run_build }}
+    steps:
+      - name: Resolve pipeline mode
+        id: resolve
+        shell: bash
+        run: |
+          mode="${{ inputs.pipeline_mode }}"
+          case "$mode" in
+            build_and_push|build_only)
+              echo "docker_options=$mode" >> "$GITHUB_OUTPUT"
+              echo "run_build=true" >> "$GITHUB_OUTPUT"
+              ;;
+            deploy_only)
+              echo "docker_options=disable_docker" >> "$GITHUB_OUTPUT"
+              echo "run_build=false" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "docker_options=build_and_push" >> "$GITHUB_OUTPUT"
+              echo "run_build=true" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
   extract-info:
     name: Extract Build Info
     runs-on: ubuntu-latest
+    needs: resolve-options
     outputs:
       org_name: ${{ steps.extract.outputs.org_name }}
       app_name: ${{ steps.extract.outputs.app_name }}
@@ -153,13 +180,11 @@ jobs:
   build-containers:
     name: Build Containers
     runs-on: ubuntu-latest
-    needs: extract-info
+    needs: [resolve-options, extract-info]
     if: >-
       ${{
-        inputs.archetype == 'containers'
-        && inputs.docker_options != 'disable_docker'
-        && inputs.docker_options != 'disable'
-        && inputs.docker_options != 'deploy_only'
+        needs.resolve-options.outputs.run_build == 'true'
+        && inputs.archetype == 'containers'
       }}
     timeout-minutes: 45
     steps:
@@ -177,7 +202,7 @@ jobs:
           REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
           REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
         with:
-          docker_options: ${{ inputs.docker_options }}
+          docker_options: ${{ needs.resolve-options.outputs.docker_options }}
 
   tag:
     name: Git Tag
