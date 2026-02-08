@@ -37,16 +37,13 @@ last_tag_prefix="${last_tag%%-*}"
 
 environment=""
 cluster_name=""
-case "${GITHUB_REF_NAME:-}" in
-  master)
-    environment="production"
-    cluster_name="k8s-production-cluster"
-    ;;
-  *)
-    environment="develop"
-    cluster_name="k8s-develop-cluster"
-    ;;
-esac
+if [[ "${GITHUB_REF_NAME:-}" == "master" ]]; then
+  environment="production"
+  cluster_name="k8s-production-cluster"
+else
+  environment="develop"
+  cluster_name="k8s-develop-cluster"
+fi
 
 full_tag_name="${repo_tag_base}-${commit_id}-${environment}"
 
