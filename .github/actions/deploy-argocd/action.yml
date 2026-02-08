@@ -253,9 +253,9 @@ runs:
           exit 1
         fi
 
-        echo "Waiting for app ${app_full} to reach Healthy/Synced"
+        echo "Waiting for app ${app_full} to reach Healthy (sync already requested)"
         argocd app wait "${app_full}" \
-          --health --sync \
+          --health \
           --timeout 600 \
           --grpc-web \
           --insecure \
