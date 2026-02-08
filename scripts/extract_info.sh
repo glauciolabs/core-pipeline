@@ -6,19 +6,30 @@ if [[ ! -f info.yaml ]]; then
   exit 1
 fi
 
-if ! command -v yq >/dev/null 2>&1; then
-  echo "[ERROR] yq is required."
+run_yq() {
+  if command -v yq >/dev/null 2>&1; then
+    yq "$@"
+    return
+  fi
+  if command -v docker >/dev/null 2>&1; then
+    docker run --rm -i \
+      -v "${PWD}:/workdir" \
+      -w /workdir \
+      mikefarah/yq:4 "$@"
+    return
+  fi
+  echo "[ERROR] yq not found and docker unavailable."
   exit 1
-fi
+}
 
 org_name="${GITHUB_REPOSITORY_OWNER:-unknown}"
 repo_full="${GITHUB_REPOSITORY:-unknown/unknown}"
 repo_url="git@github.com:${repo_full}.git"
 
-app_name=$(yq -r '.app.name' info.yaml)
-app_project=$(yq -r '.app.project' info.yaml)
-namespace=$(yq -r '.app.namespace' info.yaml)
-repo_tag_base=$(yq -r '.app.version' info.yaml)
+app_name=$(run_yq -r '.app.name' info.yaml)
+app_project=$(run_yq -r '.app.project' info.yaml)
+namespace=$(run_yq -r '.app.namespace' info.yaml)
+repo_tag_base=$(run_yq -r '.app.version' info.yaml)
 commit_id=$(git rev-parse --short HEAD)
 
 last_tag="$(git describe --tags --abbrev=0 2>/dev/null || echo "")"
@@ -27,25 +38,13 @@ last_tag_prefix="${last_tag%%-*}"
 environment=""
 cluster_name=""
 case "${GITHUB_REF_NAME:-}" in
-  develop)
-    environment="develop"
-    cluster_name="k8s-develop-cluster"
-    ;;
-  production)
-    environment="production"
-    cluster_name="k8s-production-cluster"
-    ;;
   master)
     environment="production"
     cluster_name="k8s-production-cluster"
     ;;
-  attempt-1)
+  *)
     environment="develop"
     cluster_name="k8s-develop-cluster"
-    ;;
-  *)
-    echo "[ERROR] Unsupported branch: ${GITHUB_REF_NAME:-unknown}"
-    exit 1
     ;;
 esac
 

@@ -58,15 +58,6 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Install yq
-      shell: bash
-      run: |
-        if ! command -v yq >/dev/null 2>&1; then
-          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-          sudo chmod +x /usr/local/bin/yq
-        fi
-        yq --version
-
     - name: Extract info
       id: extract
       shell: bash
