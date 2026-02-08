@@ -159,6 +159,7 @@ jobs:
         inputs.archetype == 'containers'
         && inputs.docker_options != 'disable_docker'
         && inputs.docker_options != 'disable'
+        && inputs.docker_options != 'deploy_only'
       }}
     timeout-minutes: 45
     steps:
