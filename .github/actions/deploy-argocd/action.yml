@@ -52,7 +52,7 @@ runs:
   steps:
     - name: Install tools
       shell: bash
-      run: $GITHUB_WORKSPACE/scripts/install_argocd.sh
+      run: $GITHUB_ACTION_PATH/../../scripts/install_argocd.sh
 
     - name: Argo CD - ensure repo
       shell: bash
@@ -63,7 +63,7 @@ runs:
         REPO_URL: ${{ inputs.repo_url }}
         APP_NAME: ${{ inputs.app_name }}
         APP_PROJECT: ${{ inputs.app_project }}
-      run: $GITHUB_WORKSPACE/scripts/argocd_repo.sh
+      run: $GITHUB_ACTION_PATH/../../scripts/argocd_repo.sh
 
     - name: Argo CD - ensure project (with fallback)
       shell: bash
@@ -74,7 +74,7 @@ runs:
         CLUSTER_URL: ${{ inputs.cluster_url }}
         ARGOCD_PROJECT_NAMESPACE: ${{ inputs.argocd_project_namespace }}
         REPO_URL: ${{ inputs.repo_url }}
-      run: $GITHUB_WORKSPACE/scripts/argocd_project.sh
+      run: $GITHUB_ACTION_PATH/../../scripts/argocd_project.sh
 
     - name: Argo CD - ensure app
       shell: bash
@@ -90,4 +90,4 @@ runs:
         CLUSTER_URL: ${{ inputs.cluster_url }}
         NAMESPACE: ${{ inputs.namespace }}
         REPO_TAG: ${{ inputs.repo_tag }}
-      run: $GITHUB_WORKSPACE/scripts/argocd_deploy.sh
+      run: $GITHUB_ACTION_PATH/../../scripts/argocd_deploy.sh
