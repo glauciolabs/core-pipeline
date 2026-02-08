@@ -220,14 +220,44 @@ runs:
           fi
         fi
 
-        argocd app sync "${app_full}" \
+        echo "Syncing app ${app_full}"
+        attempt=1
+        max_attempts=5
+        sync_ok=false
+        while [[ ${attempt} -le ${max_attempts} ]]; do
+          set +e
+          argocd app sync "${app_full}" \
+            --grpc-web \
+            --insecure \
+            --server "${ARGOCD_SERVER}" \
+            --auth-token "${ARGOCD_TOKEN}" \
+            --revision "${REPO_TAG}" \
+            --project "${project}" \
+            --prune \
+            --force \
+            --replace \
+            --timeout 200
+          status=$?
+          set -e
+          if [[ $status -eq 0 ]]; then
+            sync_ok=true
+            break
+          fi
+          echo "Sync attempt ${attempt} failed with code ${status}. Retrying..."
+          sleep 10
+          attempt=$((attempt+1))
+        done
+
+        if [[ "${sync_ok}" != "true" ]]; then
+          echo "[ERROR] Unable to sync app after ${max_attempts} attempts."
+          exit 1
+        fi
+
+        echo "Waiting for app ${app_full} to reach Healthy/Synced"
+        argocd app wait "${app_full}" \
+          --health --sync \
+          --timeout 600 \
           --grpc-web \
           --insecure \
           --server "${ARGOCD_SERVER}" \
-          --auth-token "${ARGOCD_TOKEN}" \
-          --revision "${REPO_TAG}" \
-          --project "${APP_PROJECT}" \
-          --prune \
-          --force \
-          --replace \
-          --timeout 200
+          --auth-token "${ARGOCD_TOKEN}"
