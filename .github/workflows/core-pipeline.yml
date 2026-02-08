@@ -211,6 +211,7 @@ jobs:
     if: >-
       ${{
         needs.extract-info.result == 'success'
+        && (needs.build-containers.result == 'success' || needs.build-containers.result == 'skipped')
       }}
     steps:
       - name: Checkout repository
