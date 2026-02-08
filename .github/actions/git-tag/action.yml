@@ -7,6 +7,14 @@ inputs:
   tag_exists:
     description: "Whether tag already exists"
     required: true
+  create_release:
+    description: "Create GitHub release after tagging"
+    required: false
+    default: "false"
+  environment:
+    description: "Environment name (e.g., production)"
+    required: false
+    default: ""
 
 runs:
   using: "composite"
@@ -16,16 +24,29 @@ runs:
       env:
         REPO_TAG: ${{ inputs.repo_tag }}
         TAG_EXISTS: ${{ inputs.tag_exists }}
+        CREATE_RELEASE: ${{ inputs.create_release }}
+        ENVIRONMENT: ${{ inputs.environment }}
+        GITHUB_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
       run: |
         if [[ "${TAG_EXISTS}" == "true" ]]; then
           echo "Tag ${REPO_TAG} already exists. Skipping."
-          exit 0
+        else
+          git config user.name "core-pipelines"
+          git config user.email "actions@github.com"
+
+          commit_message=$(git log --format=%B -n 1 | head -n 1)
+
+          git tag -a "${REPO_TAG}" -m "${commit_message}"
+          git push origin "${REPO_TAG}"
         fi
 
-        git config user.name "core-pipelines"
-        git config user.email "actions@github.com"
-
-        commit_message=$(git log --format=%B -n 1 | head -n 1)
-
-        git tag -a "${REPO_TAG}" -m "${commit_message}"
-        git push origin "${REPO_TAG}"
+        if [[ "${CREATE_RELEASE}" == "true" ]] || [[ "${ENVIRONMENT}" == "production" ]]; then
+          echo "Creating GitHub release for ${REPO_TAG}"
+          api="https://api.github.com/repos/${REPO}/releases"
+          payload=$(jq -nc --arg tag "${REPO_TAG}" --arg name "${REPO_TAG}" '{tag_name:$tag,name:$name,prerelease:false}')
+          curl -sSf -X POST "${api}" \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "${payload}"
+        fi
