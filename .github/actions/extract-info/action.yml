@@ -58,6 +58,10 @@ outputs:
 runs:
   using: "composite"
   steps:
+    - name: Install yq
+      shell: bash
+      run: scripts/install_yq.sh
+
     - name: Extract info
       id: extract
       shell: bash
@@ -67,4 +71,4 @@ runs:
         CLUSTER_DEVELOP: ${{ inputs.cluster_develop }}
         CLUSTER_PRODUCTION: ${{ inputs.cluster_production }}
         CLUSTER_PROD: ${{ inputs.cluster_prod }}
-      run: $GITHUB_ACTION_PATH/scripts/extract_info.sh
+      run: scripts/extract_info.sh

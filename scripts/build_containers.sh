@@ -19,6 +19,17 @@ if ! command -v yq >/dev/null 2>&1; then
   exit 1
 fi
 
+extract_repo_path() {
+  local repo="$1"
+  local first="${repo%%/*}"
+  local rest="${repo#*/}"
+  if [[ "$repo" == */* && ( "$first" == *.* || "$first" == *:* || "$first" == "localhost" ) ]]; then
+    echo "$rest"
+  else
+    echo "$repo"
+  fi
+}
+
 echo "[INFO] Docker options: ${DOCKER_OPTIONS}"
 
 echo "[INFO] Visible builders:"
@@ -65,6 +76,15 @@ for dir in "${ROOT_DIR}"/*; do
   fi
 
   image_ref="${container_repository}:${container_tag}"
+  secondary_image_ref=""
+  if [[ -n "${REGISTRY:-}" ]]; then
+    repo_path="$(extract_repo_path "${container_repository}")"
+    secondary_repo="${REGISTRY}/${repo_path}"
+    secondary_image_ref="${secondary_repo}:${container_tag}"
+    if [[ "${secondary_image_ref}" == "${image_ref}" ]]; then
+      secondary_image_ref=""
+    fi
+  fi
 
   platforms_raw="${container_platform}"
   IFS=',' read -ra PLATFORMS <<< "${platforms_raw}"
@@ -100,6 +120,7 @@ for dir in "${ROOT_DIR}"/*; do
     fi
 
     arch_image_refs=()
+    secondary_arch_image_refs=()
 
     for p in "${PLATFORMS[@]}"; do
       plat="$(echo "${p}" | xargs)"
@@ -107,22 +128,41 @@ for dir in "${ROOT_DIR}"/*; do
 
       arch="${plat#linux/}"
       arch_tag="${image_ref}-${arch}"
+      secondary_arch_tag=""
+      if [[ -n "${secondary_image_ref}" ]]; then
+        secondary_arch_tag="${secondary_image_ref}-${arch}"
+      fi
 
       echo "Checking if tag ${arch_tag} exists..."
       if docker manifest inspect "${arch_tag}" > /dev/null 2>&1; then
         echo ">> [FAIL] Tag ${arch_tag} already exists. Not overwriting."
         exit 0
       fi
+      if [[ -n "${secondary_arch_tag}" ]]; then
+        echo "Checking if tag ${secondary_arch_tag} exists..."
+        if docker manifest inspect "${secondary_arch_tag}" > /dev/null 2>&1; then
+          echo ">> [FAIL] Tag ${secondary_arch_tag} already exists. Not overwriting."
+          exit 0
+        fi
+      fi
 
       echo ">> Build & push for platform: ${plat} (tag: ${arch_tag})"
 
+      build_tags=(-t "${arch_tag}")
+      if [[ -n "${secondary_arch_tag}" ]]; then
+        build_tags+=(-t "${secondary_arch_tag}")
+      fi
+
       docker buildx build \
         --platform "${plat}" \
-        -t "${arch_tag}" \
+        "${build_tags[@]}" \
         -f "${dockerfile_path}" "${ROOT_DIR}" \
         --push
 
       arch_image_refs+=("${arch_tag}")
+      if [[ -n "${secondary_arch_tag}" ]]; then
+        secondary_arch_image_refs+=("${secondary_arch_tag}")
+      fi
     done
 
     echo "Creating multi-arch manifest for ${image_ref} from tags:"
@@ -133,6 +173,18 @@ for dir in "${ROOT_DIR}"/*; do
       "${arch_image_refs[@]}"
 
     echo "Multi-arch image ${image_ref} created successfully."
+
+    if [[ -n "${secondary_image_ref}" ]]; then
+      echo "Creating multi-arch manifest for ${secondary_image_ref} from tags:"
+      printf '  - %s\n' "${secondary_arch_image_refs[@]}"
+
+      docker buildx imagetools create \
+        -t "${secondary_image_ref}" \
+        "${secondary_arch_image_refs[@]}"
+
+      echo "Multi-arch image ${secondary_image_ref} created successfully."
+    fi
+
 
   elif [[ "${DOCKER_OPTIONS}" == "build_only" ]]; then
     echo "Running build_only (no push) for ${image_ref}..."
@@ -146,6 +198,7 @@ for dir in "${ROOT_DIR}"/*; do
       --load
 
     echo "Docker image ${image_ref} built locally (no push)."
+
   else
     echo ">> [SKIP] docker_options='${DOCKER_OPTIONS}' not handled."
   fi

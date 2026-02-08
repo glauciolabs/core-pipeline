@@ -1,0 +1,47 @@
+name: "Security - Snyk Code"
+description: "Run Snyk Code based on snyk_job.yaml toggles"
+inputs:
+  snyk_config_file:
+    description: "Path to snyk_job.yaml"
+    required: false
+    default: "snyk_job.yaml"
+  pipeline_mode:
+    description: "Pipeline mode"
+    required: false
+    default: "build_and_push"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install yq
+      shell: bash
+      run: scripts/install_yq.sh
+
+    - name: Run Snyk Code
+      shell: bash
+      env:
+        SNYK_CONFIG_FILE: ${{ inputs.snyk_config_file }}
+        SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
+      run: scripts/snyk_code.sh
+
+    - name: Run Snyk IaC
+      shell: bash
+      env:
+        SNYK_CONFIG_FILE: ${{ inputs.snyk_config_file }}
+        SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
+      run: scripts/snyk_iac.sh
+
+    - name: Run Snyk OSS
+      shell: bash
+      env:
+        SNYK_CONFIG_FILE: ${{ inputs.snyk_config_file }}
+        SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
+      run: scripts/snyk_oss.sh
+
+    - name: Run Snyk Container
+      shell: bash
+      env:
+        SNYK_CONFIG_FILE: ${{ inputs.snyk_config_file }}
+        PIPELINE_MODE: ${{ inputs.pipeline_mode }}
+        SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
+      run: scripts/scan_containers.sh

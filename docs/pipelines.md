@@ -24,20 +24,20 @@ on:
       - production
   workflow_dispatch:
     inputs:
-      docker_options:
+      pipeline_mode:
         type: choice
         options:
           - build_and_push
           - build_only
-          - disable_docker
+          - deploy_only
         default: build_and_push
 
 jobs:
   pipeline:
     uses: SpartanOps/core-pipelines/.github/workflows/core-pipeline.yml@v1.0.0
     with:
+      pipeline_mode: ${{ github.event_name == 'workflow_dispatch' && inputs.pipeline_mode || 'build_and_push' }}
       archetype: containers
-      docker_options: ${{ github.event_name == 'workflow_dispatch' && inputs.docker_options || 'build_and_push' }}
       kustomization_overlay: false
       helm_chart: false
       gitops_app: argocd
@@ -50,6 +50,7 @@ jobs:
       REGISTRY: ${{ secrets.REGISTRY }}
       REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
       REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
       ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
       ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
       GITOPS_SSH_PRIVATE_KEY: ${{ secrets.GITOPS_SSH_PRIVATE_KEY }}
@@ -60,3 +61,5 @@ jobs:
 ## Notes
 - The workflow tags commits as `<version>-<short_sha>-<environment>`.
 - Only `develop` and `production` branches are supported (matching the Azure pipeline behavior).
+- Security checks are controlled by `snyk_job.yaml` in the caller repository.
+- Security runs as a dedicated gate job after build and before tag/deploy.

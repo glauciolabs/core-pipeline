@@ -1,10 +1,10 @@
 # Inputs and Secrets
 
 ## Inputs
+- `pipeline_mode` (string)
+  - `build_and_push`, `build_only`, or `deploy_only`
 - `archetype` (string, required)
   - `containers` or `k8s-apps`
-- `docker_options` (string)
-  - `build_and_push`, `build_only`, `disable_docker`
 - `namespace_override` (boolean)
   - If `true`, use the namespace without environment suffix
 - `kustomization_overlay` (boolean)
@@ -23,6 +23,8 @@
   - Docker Hub credentials (optional)
 - `REGISTRY`, `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`
   - Custom registry credentials (optional)
+- `SNYK_TOKEN`
+  - Required if `snyk_job.yaml` enables `snyk_code` or `snyk_container`
 - `ARGOCD_SERVER`, `ARGOCD_TOKEN`
   - Argo CD API access (required for `gitops_app: argocd`)
 - `GITOPS_SSH_PRIVATE_KEY`
@@ -32,3 +34,28 @@
   - Cluster API endpoint for `develop`
 - `CLUSTER_PRODUCTION`
   - Cluster API endpoint for `production`
+
+## Snyk toggles
+Create a `snyk_job.yaml` at the repository root:
+```yaml
+snyk_code:
+  status: enabled
+snyk_iac:
+  status: disabled
+snyk_oss:
+  status: enabled
+snyk_container:
+  status: disabled
+  monitor: disabled
+  report: disabled
+```
+
+Supported toggles per check:
+- `status`: `enabled` or `disabled`
+- `monitor`: `enabled` or `disabled` (OSS and Container)
+- `report`: `enabled` or `disabled` (outputs HTML + JSON)
+
+## Dual registry push
+If `REGISTRY` is set, images are pushed to both:
+- Primary: `container_repository` from `info.yaml`
+- Secondary: `${REGISTRY}/<repository-path>`

@@ -44,6 +44,7 @@ on:
       REGISTRY: { required: false }
       REGISTRY_USERNAME: { required: false }
       REGISTRY_PASSWORD: { required: false }
+      SNYK_TOKEN: { required: false }
       ARGOCD_SERVER: { required: false }
       ARGOCD_TOKEN: { required: false }
       GITOPS_SSH_PRIVATE_KEY: { required: false }
@@ -62,9 +63,20 @@ defaults:
     shell: bash
 
 jobs:
-  core:
+  extract-info:
+    name: Extract Info
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    outputs:
+      repo_tag: ${{ steps.info.outputs.repo_tag }}
+      tag_exists: ${{ steps.info.outputs.tag_exists }}
+      environment: ${{ steps.info.outputs.environment }}
+      repo_url: ${{ steps.info.outputs.repo_url }}
+      app_name: ${{ steps.info.outputs.app_name }}
+      app_project: ${{ steps.info.outputs.app_project }}
+      cluster_url: ${{ steps.info.outputs.cluster_url }}
+      argocd_project_namespace: ${{ steps.info.outputs.argocd_project_namespace }}
+      kustomization_path: ${{ steps.info.outputs.kustomization_path }}
+      namespace: ${{ steps.info.outputs.namespace }}
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
@@ -78,8 +90,17 @@ jobs:
           cluster_develop: ${{ secrets.CLUSTER_DEVELOP }}
           cluster_production: ${{ secrets.CLUSTER_PRODUCTION }}
 
+  build-containers:
+    name: Build Containers
+    runs-on: ubuntu-latest
+    needs: extract-info
+    if: ${{ inputs.pipeline_mode != 'deploy_only' && inputs.archetype == 'containers' }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
       - name: Build containers
-        if: ${{ inputs.pipeline_mode != 'deploy_only' && inputs.archetype == 'containers' }}
         uses: glauciolabs/core-pipeline/.github/actions/build-containers@add2
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -90,31 +111,91 @@ jobs:
         with:
           docker_options: ${{ inputs.pipeline_mode }}
 
-      - name: Git tag
-        # tag para build_and_push e deploy_only
-        if: ${{ inputs.pipeline_mode != 'build_only' }}
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    needs: [extract-info, build-containers]
+    if: >-
+      ${{
+        inputs.pipeline_mode != 'deploy_only'
+        && (needs.build-containers.result == 'success' || needs.build-containers.result == 'skipped')
+      }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Snyk checks
+        uses: glauciolabs/core-pipeline/.github/actions/security-snyk@add2
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          pipeline_mode: ${{ inputs.pipeline_mode }}
+      - name: Detect Snyk reports
+        id: snyk_reports
+        shell: bash
+        run: |
+          if ls reports/snyk/*.html >/dev/null 2>&1; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Upload Snyk reports
+        if: ${{ steps.snyk_reports.outputs.found == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: snyk-reports
+          path: reports/snyk
+
+  tag:
+    name: Git Tag
+    runs-on: ubuntu-latest
+    needs: [extract-info, build-containers, security]
+    if: >-
+      ${{
+        inputs.pipeline_mode != 'build_only'
+        && needs.extract-info.result == 'success'
+        && (needs.build-containers.result == 'success' || needs.build-containers.result == 'skipped')
+        && (needs.security.result == 'success' || needs.security.result == 'skipped')
+      }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Tag repository
         uses: glauciolabs/core-pipeline/.github/actions/git-tag@add2
         with:
-          repo_tag: ${{ steps.info.outputs.repo_tag }}
-          tag_exists: ${{ steps.info.outputs.tag_exists }}
-          environment: ${{ steps.info.outputs.environment }}
-          create_release: ${{ steps.info.outputs.environment == 'production' }}
+          repo_tag: ${{ needs.extract-info.outputs.repo_tag }}
+          tag_exists: ${{ needs.extract-info.outputs.tag_exists }}
+          environment: ${{ needs.extract-info.outputs.environment }}
+          create_release: ${{ needs.extract-info.outputs.environment == 'production' }}
 
+  deploy-argocd:
+    name: Deploy via Argo CD
+    runs-on: ubuntu-latest
+    needs: [extract-info, tag, security]
+    if: >-
+      ${{
+        inputs.pipeline_mode != 'build_only'
+        && inputs.gitops_app == 'argocd'
+        && needs.extract-info.result == 'success'
+        && (needs.tag.result == 'success' || needs.tag.result == 'skipped')
+        && (needs.security.result == 'success' || needs.security.result == 'skipped')
+      }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
       - name: Deploy with Argo CD
-        if: ${{ inputs.pipeline_mode != 'build_only' && inputs.gitops_app == 'argocd' }}
         uses: glauciolabs/core-pipeline/.github/actions/deploy-argocd@add2
         with:
           argocd_server: ${{ secrets.ARGOCD_SERVER }}
           argocd_token: ${{ secrets.ARGOCD_TOKEN }}
           gitops_ssh_private_key: ${{ secrets.GITOPS_SSH_PRIVATE_KEY }}
-          repo_url: ${{ steps.info.outputs.repo_url }}
-          app_name: ${{ steps.info.outputs.app_name }}
-          app_project: ${{ steps.info.outputs.app_project }}
-          cluster_url: ${{ steps.info.outputs.cluster_url }}
-          argocd_project_namespace: ${{ steps.info.outputs.argocd_project_namespace }}
-          environment: ${{ steps.info.outputs.environment }}
-          kustomization_path: ${{ steps.info.outputs.kustomization_path }}
-          namespace: ${{ steps.info.outputs.namespace }}
-          repo_tag: ${{ steps.info.outputs.repo_tag }}
+          repo_url: ${{ needs.extract-info.outputs.repo_url }}
+          app_name: ${{ needs.extract-info.outputs.app_name }}
+          app_project: ${{ needs.extract-info.outputs.app_project }}
+          cluster_url: ${{ needs.extract-info.outputs.cluster_url }}
+          argocd_project_namespace: ${{ needs.extract-info.outputs.argocd_project_namespace }}
+          environment: ${{ needs.extract-info.outputs.environment }}
+          kustomization_path: ${{ needs.extract-info.outputs.kustomization_path }}
+          namespace: ${{ needs.extract-info.outputs.namespace }}
+          repo_tag: ${{ needs.extract-info.outputs.repo_tag }}
           deployment_mode: ${{ inputs.argocd_deployment_mode }}
           application_manifest_path: ${{ inputs.argocd_application_manifest }}
