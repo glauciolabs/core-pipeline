@@ -7,6 +7,12 @@ on:
         type: choice
         options: [build_and_push, build_only, deploy_only]
         default: build_and_push
+      namespace_override:
+        type: boolean
+        default: false
+      kustomization_overlay:
+        type: boolean
+        default: false
       archetype:
         type: choice
         options: [containers, k8s-apps]
@@ -26,6 +32,8 @@ on:
   workflow_call:
     inputs:
       pipeline_mode: { type: string, default: build_and_push }
+      namespace_override: { type: boolean, default: false }
+      kustomization_overlay: { type: boolean, default: false }
       archetype: { type: string, required: true }
       gitops_app: { type: string, default: argocd }
       argocd_deployment_mode: { type: string, default: kustomize }
@@ -65,9 +73,8 @@ jobs:
         id: info
         uses: glauciolabs/core-pipeline/.github/actions/extract-info@add2
         with:
-          # mantém seus toggles se ainda precisar
-          namespace_override: ${{ inputs.namespace_override || false }}
-          kustomization_overlay: ${{ inputs.kustomization_overlay || false }}
+          namespace_override: ${{ inputs.namespace_override }}
+          kustomization_overlay: ${{ inputs.kustomization_overlay }}
           cluster_develop: ${{ secrets.CLUSTER_DEVELOP }}
           cluster_production: ${{ secrets.CLUSTER_PRODUCTION }}
 
@@ -84,8 +91,8 @@ jobs:
           docker_options: ${{ inputs.pipeline_mode }}
 
       - name: Git tag
-        # escolha a política: tag só quando build_and_push (mais normal)
-        if: ${{ inputs.pipeline_mode == 'build_and_push' }}
+        # tag para build_and_push e deploy_only
+        if: ${{ inputs.pipeline_mode != 'build_only' }}
         uses: glauciolabs/core-pipeline/.github/actions/git-tag@add2
         with:
           repo_tag: ${{ steps.info.outputs.repo_tag }}
