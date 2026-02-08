@@ -123,6 +123,7 @@ runs:
           argocd proj create "${APP_PROJECT}" \
             -d "${CLUSTER_URL}","${ARGOCD_PROJECT_NAMESPACE}" \
             -s "${REPO_URL}" \
+            --upsert \
             --auth-token "${ARGOCD_TOKEN}" \
             --grpc-web \
             --insecure \
