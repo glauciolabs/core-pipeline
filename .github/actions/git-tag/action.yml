@@ -28,4 +28,4 @@ runs:
         ENVIRONMENT: ${{ inputs.environment }}
         GITHUB_TOKEN: ${{ github.token }}
         REPO: ${{ github.repository }}
-      run: $GITHUB_ACTION_PATH/../../scripts/git_tag.sh
+      run: $GITHUB_ACTION_PATH/../../../scripts/git_tag.sh
