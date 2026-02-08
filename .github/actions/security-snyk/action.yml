@@ -15,28 +15,28 @@ runs:
   steps:
     - name: Install yq
       shell: bash
-      run: scripts/install_yq.sh
+      run: $GITHUB_WORKSPACE/scripts/install_yq.sh
 
     - name: Run Snyk Code
       shell: bash
       env:
         SNYK_CONFIG_FILE: ${{ inputs.snyk_config_file }}
         SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
-      run: scripts/snyk_code.sh
+      run: $GITHUB_WORKSPACE/scripts/snyk_code.sh
 
     - name: Run Snyk IaC
       shell: bash
       env:
         SNYK_CONFIG_FILE: ${{ inputs.snyk_config_file }}
         SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
-      run: scripts/snyk_iac.sh
+      run: $GITHUB_WORKSPACE/scripts/snyk_iac.sh
 
     - name: Run Snyk OSS
       shell: bash
       env:
         SNYK_CONFIG_FILE: ${{ inputs.snyk_config_file }}
         SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
-      run: scripts/snyk_oss.sh
+      run: $GITHUB_WORKSPACE/scripts/snyk_oss.sh
 
     - name: Run Snyk Container
       shell: bash
@@ -44,4 +44,4 @@ runs:
         SNYK_CONFIG_FILE: ${{ inputs.snyk_config_file }}
         PIPELINE_MODE: ${{ inputs.pipeline_mode }}
         SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
-      run: scripts/scan_containers.sh
+      run: $GITHUB_WORKSPACE/scripts/scan_containers.sh

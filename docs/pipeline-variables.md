@@ -40,6 +40,8 @@ Create a `snyk_job.yaml` at the repository root:
 ```yaml
 snyk_code:
   status: enabled
+  monitor: disabled
+  report: enabled
 snyk_iac:
   status: disabled
 snyk_oss:

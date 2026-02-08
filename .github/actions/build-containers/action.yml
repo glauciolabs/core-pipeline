@@ -11,7 +11,7 @@ runs:
   steps:
     - name: Install yq
       shell: bash
-      run: scripts/install_yq.sh
+      run: $GITHUB_WORKSPACE/scripts/install_yq.sh
 
     - name: Enable containerd snapshotter for Docker
       shell: bash
@@ -48,4 +48,4 @@ runs:
       shell: bash
       env:
         DOCKER_OPTIONS: ${{ inputs.docker_options }}
-      run: scripts/build_containers.sh
+      run: $GITHUB_WORKSPACE/scripts/build_containers.sh

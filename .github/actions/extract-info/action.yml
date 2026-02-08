@@ -60,7 +60,7 @@ runs:
   steps:
     - name: Install yq
       shell: bash
-      run: scripts/install_yq.sh
+      run: $GITHUB_WORKSPACE/scripts/install_yq.sh
 
     - name: Extract info
       id: extract
@@ -71,4 +71,4 @@ runs:
         CLUSTER_DEVELOP: ${{ inputs.cluster_develop }}
         CLUSTER_PRODUCTION: ${{ inputs.cluster_production }}
         CLUSTER_PROD: ${{ inputs.cluster_prod }}
-      run: scripts/extract_info.sh
+      run: $GITHUB_WORKSPACE/scripts/extract_info.sh
