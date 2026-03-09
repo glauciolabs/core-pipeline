@@ -62,3 +62,7 @@ Supported toggles per check:
 If `REGISTRY` is set, images are pushed to both:
 - Primary: `container_repository` from `info.yaml`
 - Secondary: `${REGISTRY}/<repository-path>`
+
+## GHCR package visibility and repository linking
+- Package visibility (`public`/`private`) is controlled in GitHub Packages settings (org/user policy).
+- The pipeline publishes OCI labels (`org.opencontainers.image.source`, `url`, `revision`) so GHCR can associate images to the source repository.

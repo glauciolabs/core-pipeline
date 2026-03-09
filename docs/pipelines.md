@@ -67,3 +67,5 @@ For custom registries, password fallback order is:
 - `master` maps to `production`; any other branch maps to `develop`.
 - Security checks are controlled by `snyk_job.yaml` in the caller repository.
 - Security runs as a dedicated gate job after build and before tag/deploy.
+- For GHCR, images are built with OCI labels that help associate packages to the source repository.
+- GHCR package visibility (`public`/`private`) is configured in package settings.

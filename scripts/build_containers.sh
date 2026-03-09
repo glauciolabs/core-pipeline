@@ -9,6 +9,17 @@ if [[ "$DOCKER_OPTIONS" == "disable" || "$DOCKER_OPTIONS" == "disable_docker" ]]
   exit 0
 fi
 
+OCI_LABEL_ARGS=()
+if [[ -n "${GITHUB_REPOSITORY:-}" ]]; then
+  OCI_LABEL_ARGS+=(--label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}")
+fi
+if [[ -n "${GITHUB_SERVER_URL:-}" && -n "${GITHUB_REPOSITORY:-}" ]]; then
+  OCI_LABEL_ARGS+=(--label "org.opencontainers.image.url=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}")
+fi
+if [[ -n "${GITHUB_SHA:-}" ]]; then
+  OCI_LABEL_ARGS+=(--label "org.opencontainers.image.revision=${GITHUB_SHA}")
+fi
+
 if [[ ! -d "${ROOT_DIR}" ]]; then
   echo "[INFO] Directory ${ROOT_DIR} not found. Nothing to build."
   exit 0
@@ -156,6 +167,7 @@ for dir in "${ROOT_DIR}"/*; do
       docker buildx build \
         --platform "${plat}" \
         "${build_tags[@]}" \
+        "${OCI_LABEL_ARGS[@]}" \
         -f "${dockerfile_path}" "${ROOT_DIR}" \
         --push
 
@@ -194,6 +206,7 @@ for dir in "${ROOT_DIR}"/*; do
     docker buildx build \
       --platform "${first_plat}" \
       -t "${image_ref}" \
+      "${OCI_LABEL_ARGS[@]}" \
       -f "${dockerfile_path}" "${ROOT_DIR}" \
       --load
 
