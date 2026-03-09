@@ -28,6 +28,13 @@ on:
       argocd_application_manifest:
         type: string
         default: ""
+      release_policy:
+        type: choice
+        options: [auto, always, never]
+        default: auto
+      release_notes_file:
+        type: string
+        default: ""
 
   workflow_call:
     inputs:
@@ -38,6 +45,8 @@ on:
       gitops_app: { type: string, default: argocd }
       argocd_deployment_mode: { type: string, default: kustomize }
       argocd_application_manifest: { type: string, default: "" }
+      release_policy: { type: string, default: auto }
+      release_notes_file: { type: string, default: "" }
     secrets:
       DOCKERHUB_USERNAME: { required: false }
       DOCKERHUB_TOKEN: { required: false }
@@ -167,7 +176,9 @@ jobs:
           repo_tag: ${{ needs.extract-info.outputs.repo_tag }}
           tag_exists: ${{ needs.extract-info.outputs.tag_exists }}
           environment: ${{ needs.extract-info.outputs.environment }}
-          create_release: ${{ needs.extract-info.outputs.environment == 'production' }}
+          create_release: ${{ inputs.release_policy == 'always' || (inputs.release_policy == 'auto' && needs.extract-info.outputs.environment == 'production') }}
+          prerelease: ${{ needs.extract-info.outputs.environment != 'production' }}
+          release_notes_file: ${{ inputs.release_notes_file }}
 
   deploy-argocd:
     name: Deploy via Argo CD

@@ -15,6 +15,14 @@ inputs:
     description: "Environment name (e.g., production)"
     required: false
     default: ""
+  prerelease:
+    description: "Whether GitHub release should be marked as prerelease"
+    required: false
+    default: "false"
+  release_notes_file:
+    description: "Optional path to release notes file"
+    required: false
+    default: ""
 
 runs:
   using: "composite"
@@ -26,6 +34,9 @@ runs:
         TAG_EXISTS: ${{ inputs.tag_exists }}
         CREATE_RELEASE: ${{ inputs.create_release }}
         ENVIRONMENT: ${{ inputs.environment }}
+        PRERELEASE: ${{ inputs.prerelease }}
+        RELEASE_NOTES_FILE: ${{ inputs.release_notes_file }}
         GITHUB_TOKEN: ${{ github.token }}
         REPO: ${{ github.repository }}
+        GITHUB_SHA: ${{ github.sha }}
       run: $GITHUB_ACTION_PATH/../../../scripts/git_tag.sh

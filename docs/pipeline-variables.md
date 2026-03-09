@@ -17,6 +17,15 @@
   - `kustomize` or `application`
 - `argocd_application_manifest` (string)
   - Path to an Argo CD Application manifest file (used when `argocd_deployment_mode=application`)
+- `release_policy` (string)
+  - `auto`, `always`, or `never`
+  - `auto`: creates release only for `production`
+  - `always`: always creates release (non-production as prerelease)
+  - `never`: does not create release
+- `release_notes_file` (string)
+  - Optional path to a release notes file in the repository.
+  - If omitted, pipeline tries `RELEASE_NOTES.md`, `.github/RELEASE_NOTES.md`, `CHANGELOG.md`, `CHANGES.md`.
+  - If none exists, GitHub auto-generated release notes are used.
 
 ## Secrets
 - `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`
