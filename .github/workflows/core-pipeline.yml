@@ -44,6 +44,7 @@ on:
       REGISTRY: { required: false }
       REGISTRY_USERNAME: { required: false }
       REGISTRY_PASSWORD: { required: false }
+      GIT_REGISTRY_TOKEN: { required: false }
       SNYK_TOKEN: { required: false }
       ARGOCD_SERVER: { required: false }
       ARGOCD_TOKEN: { required: false }
@@ -53,6 +54,7 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 concurrency:
   group: core-pipeline-${{ github.workflow }}-${{ github.ref }}
@@ -106,8 +108,8 @@ jobs:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
           REGISTRY: ${{ secrets.REGISTRY }}
-          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
-          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME != '' && secrets.REGISTRY_USERNAME || github.actor }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD || secrets.GIT_REGISTRY_TOKEN || github.token }}
         with:
           docker_options: ${{ inputs.pipeline_mode }}
 

@@ -21,8 +21,9 @@
 ## Secrets
 - `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`
   - Docker Hub credentials (optional)
-- `REGISTRY`, `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`
+- `REGISTRY`, `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`, `GIT_REGISTRY_TOKEN`
   - Custom registry credentials (optional)
+  - Fallback order for registry password: `REGISTRY_PASSWORD` -> `GIT_REGISTRY_TOKEN` -> `github.token`
 - `SNYK_TOKEN`
   - Required if `snyk_job.yaml` enables `snyk_code` or `snyk_container`
 - `ARGOCD_SERVER`, `ARGOCD_TOKEN`
@@ -33,7 +34,7 @@
 - `CLUSTER_DEVELOP`
   - Cluster API endpoint for `develop`
 - `CLUSTER_PRODUCTION`
-  - Cluster API endpoint for `production`
+  - Cluster API endpoint for `production` (branch `master`)
 
 ## Snyk toggles
 Create a `snyk_job.yaml` at the repository root:

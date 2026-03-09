@@ -21,7 +21,7 @@ on:
   push:
     branches:
       - develop
-      - production
+      - master
   workflow_dispatch:
     inputs:
       pipeline_mode:
@@ -50,6 +50,7 @@ jobs:
       REGISTRY: ${{ secrets.REGISTRY }}
       REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
       REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+      GIT_REGISTRY_TOKEN: ${{ secrets.GIT_REGISTRY_TOKEN }}
       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
       ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
       ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
@@ -58,8 +59,11 @@ jobs:
       CLUSTER_PRODUCTION: ${{ secrets.CLUSTER_PRODUCTION }}
 ```
 
+For custom registries, password fallback order is:
+`REGISTRY_PASSWORD` -> `GIT_REGISTRY_TOKEN` -> `github.token`.
+
 ## Notes
 - The workflow tags commits as `<version>-<short_sha>-<environment>`.
-- Only `develop` and `production` branches are supported (matching the Azure pipeline behavior).
+- `master` maps to `production`; any other branch maps to `develop`.
 - Security checks are controlled by `snyk_job.yaml` in the caller repository.
 - Security runs as a dedicated gate job after build and before tag/deploy.
