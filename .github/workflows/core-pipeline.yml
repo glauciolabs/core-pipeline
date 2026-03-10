@@ -162,7 +162,8 @@ jobs:
     needs: [extract-info, build-containers, security]
     if: >-
       ${{
-        inputs.pipeline_mode != 'build_only'
+        always()
+        && inputs.pipeline_mode != 'build_only'
         && needs.extract-info.result == 'success'
         && (needs.build-containers.result == 'success' || needs.build-containers.result == 'skipped')
         && (needs.security.result == 'success' || needs.security.result == 'skipped')
@@ -186,7 +187,8 @@ jobs:
     needs: [extract-info, tag, security]
     if: >-
       ${{
-        inputs.pipeline_mode != 'build_only'
+        always()
+        && inputs.pipeline_mode != 'build_only'
         && inputs.gitops_app == 'argocd'
         && needs.extract-info.result == 'success'
         && (needs.tag.result == 'success' || needs.tag.result == 'skipped')
