@@ -26,6 +26,18 @@ inputs:
   argocd_project_namespace:
     description: "Namespace for Argo CD project"
     required: true
+  namespace_override:
+    description: "Whether namespace override is enabled"
+    required: false
+    default: "false"
+  cluster_develop:
+    description: "Develop cluster API URL"
+    required: false
+    default: ""
+  cluster_production:
+    description: "Production cluster API URL"
+    required: false
+    default: ""
   environment:
     description: "Environment name"
     required: true
@@ -74,6 +86,9 @@ runs:
         CLUSTER_URL: ${{ inputs.cluster_url }}
         ARGOCD_PROJECT_NAMESPACE: ${{ inputs.argocd_project_namespace }}
         REPO_URL: ${{ inputs.repo_url }}
+        NAMESPACE_OVERRIDE: ${{ inputs.namespace_override }}
+        CLUSTER_DEVELOP: ${{ inputs.cluster_develop }}
+        CLUSTER_PRODUCTION: ${{ inputs.cluster_production }}
       run: $GITHUB_ACTION_PATH/../../../scripts/argocd_project.sh
 
     - name: Argo CD - ensure app

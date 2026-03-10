@@ -206,6 +206,9 @@ jobs:
           app_project: ${{ needs.extract-info.outputs.app_project }}
           cluster_url: ${{ needs.extract-info.outputs.cluster_url }}
           argocd_project_namespace: ${{ needs.extract-info.outputs.argocd_project_namespace }}
+          namespace_override: ${{ inputs.namespace_override }}
+          cluster_develop: ${{ secrets.CLUSTER_DEVELOP }}
+          cluster_production: ${{ secrets.CLUSTER_PRODUCTION }}
           environment: ${{ needs.extract-info.outputs.environment }}
           kustomization_path: ${{ needs.extract-info.outputs.kustomization_path }}
           namespace: ${{ needs.extract-info.outputs.namespace }}
