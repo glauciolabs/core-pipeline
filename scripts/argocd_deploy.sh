@@ -3,6 +3,12 @@ set -euo pipefail
 
 app_full="${APP_NAME}-${ENVIRONMENT}"
 project="${APP_PROJECT:-${APP_NAME}}"
+cluster_url="${CLUSTER_URL:-}"
+
+if [[ -z "${cluster_url}" ]]; then
+  cluster_url="https://kubernetes.default.svc"
+  echo "[WARN] CLUSTER_URL is empty. Falling back to ${cluster_url}"
+fi
 
 if [[ "${DEPLOYMENT_MODE}" == "application" ]]; then
   if [[ -z "${APPLICATION_MANIFEST_PATH}" ]]; then
@@ -31,7 +37,7 @@ else
       --grpc-web --insecure \
       --server "${ARGOCD_SERVER}" \
       --path "${KUSTOMIZATION_PATH}" \
-      --dest-server "${CLUSTER_URL}" \
+      --dest-server "${cluster_url}" \
       --dest-namespace "${NAMESPACE}" \
       --revision "${REPO_TAG}" \
       --project "${project}" \
@@ -45,7 +51,7 @@ else
     argocd app create "${app_full}" \
       --repo "${REPO_URL}" \
       --path "${KUSTOMIZATION_PATH}" \
-      --dest-server "${CLUSTER_URL}" \
+      --dest-server "${cluster_url}" \
       --dest-namespace "${NAMESPACE}" \
       --revision "${REPO_TAG}" \
       --project "${project}" \

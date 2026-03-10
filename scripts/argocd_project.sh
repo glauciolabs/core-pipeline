@@ -2,6 +2,12 @@
 set -euo pipefail
 
 project="${APP_PROJECT}"
+cluster_url="${CLUSTER_URL:-}"
+
+if [[ -z "${cluster_url}" ]]; then
+  cluster_url="https://kubernetes.default.svc"
+  echo "[WARN] CLUSTER_URL is empty. Falling back to ${cluster_url}"
+fi
 
 if argocd proj list --auth-token "${ARGOCD_TOKEN}" --grpc-web --insecure --server "${ARGOCD_SERVER}" -o json | jq -r '.[] | .metadata.name' | grep -x "${project}"; then
   echo "Project exists: ${project}"
@@ -9,7 +15,7 @@ if argocd proj list --auth-token "${ARGOCD_TOKEN}" --grpc-web --insecure --serve
 else
   echo "Creating project ${project}"
   if argocd proj create "${project}" \
-    -d "${CLUSTER_URL}","${ARGOCD_PROJECT_NAMESPACE}" \
+    -d "${cluster_url}","${ARGOCD_PROJECT_NAMESPACE}" \
     -s "${REPO_URL}" \
     --upsert \
     --auth-token "${ARGOCD_TOKEN}" \

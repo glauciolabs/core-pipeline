@@ -90,4 +90,5 @@ runs:
         CLUSTER_URL: ${{ inputs.cluster_url }}
         NAMESPACE: ${{ inputs.namespace }}
         REPO_TAG: ${{ inputs.repo_tag }}
+        APP_PROJECT: ${{ env.APP_PROJECT != '' && env.APP_PROJECT || inputs.app_project }}
       run: $GITHUB_ACTION_PATH/../../../scripts/argocd_deploy.sh
