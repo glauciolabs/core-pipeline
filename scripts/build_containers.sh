@@ -124,8 +124,9 @@ for dir in "${ROOT_DIR}"/*; do
   if [[ "${DOCKER_OPTIONS}" == "build_and_push" ]]; then
     echo "Checking if image ${image_ref} exists..."
     if docker manifest inspect "${image_ref}" > /dev/null 2>&1; then
-      echo ">> [SKIP] Image ${image_ref} already exists. Skipping build."
-      continue
+      echo ">> [FAIL] Image ${image_ref} already exists."
+      echo ">> [FAIL] Bump app.version/container.tag before running build_and_push again."
+      exit 1
     else
       echo ">> Image ${image_ref} does not exist. Building and pushing per platform..."
     fi

@@ -42,12 +42,8 @@ for destination in "${DESTINATIONS[@]}"; do
   destination_args+=("-d" "${destination}")
 done
 
-if argocd proj list --auth-token "${ARGOCD_TOKEN}" --grpc-web --insecure --server "${ARGOCD_SERVER}" -o json | jq -r '.[] | .metadata.name' | grep -x "${project}"; then
-  echo "Project exists: ${project}"
-  echo "APP_PROJECT=${project}" >> "$GITHUB_ENV"
-else
-  echo "Creating project ${project}"
-  if argocd proj create "${project}" \
+upsert_project() {
+  argocd proj create "${project}" \
     "${destination_args[@]}" \
     -s "${REPO_URL}" \
     --upsert \
@@ -56,7 +52,36 @@ else
     --insecure \
     --server "${ARGOCD_SERVER}" \
     --allow-namespaced-resource '*/*' \
-    --allow-cluster-resource '*/*'; then
+    --allow-cluster-resource '*/*'
+}
+
+reconcile_destinations() {
+  local destination server namespace
+  for destination in "${DESTINATIONS[@]}"; do
+    server="${destination%%,*}"
+    namespace="${destination#*,}"
+    [[ -z "${server}" || -z "${namespace}" ]] && continue
+    argocd proj add-destination "${project}" "${server}" "${namespace}" \
+      --auth-token "${ARGOCD_TOKEN}" \
+      --grpc-web \
+      --insecure \
+      --server "${ARGOCD_SERVER}" >/dev/null 2>&1 || true
+  done
+}
+
+if argocd proj list --auth-token "${ARGOCD_TOKEN}" --grpc-web --insecure --server "${ARGOCD_SERVER}" -o json | jq -r '.[] | .metadata.name' | grep -x "${project}"; then
+  echo "Project exists. Reconciling destinations and source repo: ${project}"
+  if upsert_project; then
+    reconcile_destinations
+    echo "APP_PROJECT=${project}" >> "$GITHUB_ENV"
+  else
+    echo "WARNING: could not reconcile project ${project}; using existing project as-is"
+    echo "APP_PROJECT=${project}" >> "$GITHUB_ENV"
+  fi
+else
+  echo "Creating project ${project}"
+  if upsert_project; then
+    reconcile_destinations
     echo "APP_PROJECT=${project}" >> "$GITHUB_ENV"
   else
     if argocd proj get "${project}" \

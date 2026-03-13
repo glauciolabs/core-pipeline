@@ -37,6 +37,9 @@ last_tag_prefix="${last_tag%%-*}"
 
 environment=""
 cluster_name=""
+# Branch mapping rule:
+# - master => production
+# - any other branch => develop
 if [[ "${GITHUB_REF_NAME:-}" == "master" ]]; then
   environment="production"
   cluster_name="k8s-production-cluster"
