@@ -142,6 +142,7 @@ jobs:
           pipeline_mode: ${{ inputs.pipeline_mode }}
       - name: Detect Snyk reports
         id: snyk_reports
+        if: ${{ always() }}
         shell: bash
         run: |
           if ls reports/snyk/*.html >/dev/null 2>&1; then
@@ -150,7 +151,7 @@ jobs:
             echo "found=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Upload Snyk reports
-        if: ${{ steps.snyk_reports.outputs.found == 'true' }}
+        if: ${{ always() && steps.snyk_reports.outputs.found == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: snyk-reports

@@ -78,7 +78,13 @@ for dir in "${ROOT_DIR}"/*; do
     continue
   fi
 
-  image_ref="${container_repository}:${container_tag}"
+  branch_name="${GITHUB_REF_NAME:-}"
+  image_tag="${container_tag}"
+  if [[ -n "${branch_name}" && "${branch_name}" != "master" && "${image_tag}" != *-dev ]]; then
+    image_tag="${image_tag}-dev"
+  fi
+
+  image_ref="${container_repository}:${image_tag}"
   echo "[INFO] Running Snyk Container scan for ${image_ref}..."
   scan_exit=0
 
