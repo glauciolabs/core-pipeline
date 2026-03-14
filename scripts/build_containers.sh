@@ -74,11 +74,18 @@ for dir in "${ROOT_DIR}"/*; do
   container_tag=$(yq -r '.app.container.tag' "${info_file}")
   repo_tag=$(yq -r '.app.version' "${info_file}")
 
+  branch_name="${GITHUB_REF_NAME:-}"
+  image_tag="${container_tag}"
+  if [[ -n "${branch_name}" && "${branch_name}" != "master" && "${image_tag}" != *-dev ]]; then
+    image_tag="${image_tag}-dev"
+  fi
+
   echo "app_name: ${app_name}"
   echo "container_repository: ${container_repository}"
   echo "container_registry: ${container_registry}"
   echo "container_platform: ${container_platform}"
   echo "container_tag: ${container_tag}"
+  echo "image_tag: ${image_tag}"
   echo "repo_tag: ${repo_tag}"
 
   if [[ -z "${container_repository}" || -z "${container_tag}" ]]; then
@@ -86,12 +93,12 @@ for dir in "${ROOT_DIR}"/*; do
     continue
   fi
 
-  image_ref="${container_repository}:${container_tag}"
+  image_ref="${container_repository}:${image_tag}"
   secondary_image_ref=""
   if [[ -n "${REGISTRY:-}" ]]; then
     repo_path="$(extract_repo_path "${container_repository}")"
     secondary_repo="${REGISTRY}/${repo_path}"
-    secondary_image_ref="${secondary_repo}:${container_tag}"
+    secondary_image_ref="${secondary_repo}:${image_tag}"
     if [[ "${secondary_image_ref}" == "${image_ref}" ]]; then
       secondary_image_ref=""
     fi
