@@ -1,5 +1,8 @@
 name: Core Pipeline
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 on:
   workflow_dispatch:
     inputs:
@@ -89,7 +92,7 @@ jobs:
       kustomization_path: ${{ steps.info.outputs.kustomization_path }}
       namespace: ${{ steps.info.outputs.namespace }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with: { fetch-depth: 0 }
 
       - name: Extract build info
@@ -108,7 +111,7 @@ jobs:
     if: ${{ inputs.pipeline_mode != 'deploy_only' && inputs.archetype == 'containers' }}
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with: { fetch-depth: 0 }
 
       - name: Build containers
@@ -132,7 +135,7 @@ jobs:
         && (needs.build-containers.result == 'success' || needs.build-containers.result == 'skipped')
       }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with: { fetch-depth: 0 }
       - name: Snyk checks
         uses: glauciolabs/core-pipeline/.github/actions/security-snyk@add2
@@ -170,7 +173,7 @@ jobs:
         && (needs.security.result == 'success' || needs.security.result == 'skipped')
       }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with: { fetch-depth: 0 }
       - name: Tag repository
         uses: glauciolabs/core-pipeline/.github/actions/git-tag@add2
@@ -196,7 +199,7 @@ jobs:
         && (needs.security.result == 'success' || needs.security.result == 'skipped')
       }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with: { fetch-depth: 0 }
       - name: Deploy with Argo CD
         uses: glauciolabs/core-pipeline/.github/actions/deploy-argocd@add2

@@ -72,6 +72,8 @@ Supported toggles per check:
 - `report`: `enabled` or `disabled` (outputs HTML + JSON)
 - `fail_on_issues`: `enabled` or `disabled` (exit `1` when findings exist)
 
+If `snyk_job.yaml` is missing, the pipeline skips all Snyk scans.
+
 ## Dual registry push
 If `REGISTRY` is set, images are pushed to both:
 - Primary: `container_repository` from `info.yaml`
