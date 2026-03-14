@@ -94,13 +94,17 @@ for dir in "${ROOT_DIR}"/*; do
   if [[ "${report_status}" == "enabled" ]]; then
     safe_name="$(echo "${image_ref}" | tr '/:' '__')"
     set +e
+    dockerfile_arg=()
+    if [[ -n "${dockerfile_path}" ]]; then
+      dockerfile_arg+=(--file="${dockerfile_path}")
+    fi
     docker run --rm \
       -e SNYK_TOKEN="${SNYK_TOKEN}" \
       -v /var/run/docker.sock:/var/run/docker.sock \
       -v "${PWD}:/app" \
       -w /app \
       snyk/snyk:alpine \
-      snyk container test "${image_ref}" --file "${dockerfile_path}" --json-file-output="${REPORTS_DIR}/snyk-container-${safe_name}.json"
+      snyk container test "${image_ref}" "${dockerfile_arg[@]}" --json-file-output="${REPORTS_DIR}/snyk-container-${safe_name}.json"
     scan_exit=$?
     set -e
 
@@ -123,13 +127,17 @@ for dir in "${ROOT_DIR}"/*; do
     fi
   else
     set +e
+    dockerfile_arg=()
+    if [[ -n "${dockerfile_path}" ]]; then
+      dockerfile_arg+=(--file="${dockerfile_path}")
+    fi
     docker run --rm \
       -e SNYK_TOKEN="${SNYK_TOKEN}" \
       -v /var/run/docker.sock:/var/run/docker.sock \
       -v "${PWD}:/app" \
       -w /app \
       snyk/snyk:alpine \
-      snyk container test "${image_ref}" --file "${dockerfile_path}"
+      snyk container test "${image_ref}" "${dockerfile_arg[@]}"
     scan_exit=$?
     set -e
 
@@ -148,13 +156,17 @@ for dir in "${ROOT_DIR}"/*; do
   if [[ "${monitor_status}" == "enabled" ]]; then
     echo "[INFO] Running Snyk Container monitor for ${image_ref}..."
     set +e
+    dockerfile_arg=()
+    if [[ -n "${dockerfile_path}" ]]; then
+      dockerfile_arg+=(--file="${dockerfile_path}")
+    fi
     docker run --rm \
       -e SNYK_TOKEN="${SNYK_TOKEN}" \
       -v /var/run/docker.sock:/var/run/docker.sock \
       -v "${PWD}:/app" \
       -w /app \
       snyk/snyk:alpine \
-      snyk container monitor "${image_ref}" --file "${dockerfile_path}"
+      snyk container monitor "${image_ref}" "${dockerfile_arg[@]}"
     monitor_exit=$?
     set -e
     if [[ ${monitor_exit} -ne 0 ]]; then
