@@ -148,11 +148,29 @@ jobs:
         if: ${{ always() }}
         shell: bash
         run: |
-          if ls reports/snyk/*.html >/dev/null 2>&1; then
+          if ls reports/snyk/* >/dev/null 2>&1; then
             echo "found=true" >> "$GITHUB_OUTPUT"
           else
             echo "found=false" >> "$GITHUB_OUTPUT"
           fi
+      - name: Publish Snyk summary
+        if: ${{ always() && steps.snyk_reports.outputs.found == 'true' }}
+        shell: bash
+        run: |
+          {
+            echo "## Snyk Reports"
+            echo ""
+            if [[ -f reports/snyk/snyk-exit-summary.txt ]]; then
+              echo '```txt'
+              cat reports/snyk/snyk-exit-summary.txt
+              echo '```'
+            else
+              echo "No exit summary file found."
+            fi
+            echo ""
+            echo "Files generated:"
+            ls -1 reports/snyk | sed 's/^/- /'
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload Snyk reports
         if: ${{ always() && steps.snyk_reports.outputs.found == 'true' }}
         uses: actions/upload-artifact@v4

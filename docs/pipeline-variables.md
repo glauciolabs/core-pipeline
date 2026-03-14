@@ -74,6 +74,11 @@ Supported toggles per check:
 
 If `snyk_job.yaml` is missing, the pipeline skips all Snyk scans.
 
+## Snyk reports in GitHub Actions
+- Reports are generated under `reports/snyk`.
+- The `security` job uploads them as the artifact `snyk-reports`.
+- The job summary also includes the aggregated Snyk exit codes from `reports/snyk/snyk-exit-summary.txt`.
+
 ## Dual registry push
 If `REGISTRY` is set, images are pushed to both:
 - Primary: `container_repository` from `info.yaml`

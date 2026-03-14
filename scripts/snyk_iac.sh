@@ -26,6 +26,7 @@ fi
 mkdir -p "${REPORTS_DIR}"
 
 scan_exit=0
+html_exit=0
 
 if [[ "${report_status}" == "enabled" ]]; then
   echo "[INFO] Running Snyk IaC (JSON report)..."
@@ -35,7 +36,7 @@ if [[ "${report_status}" == "enabled" ]]; then
     -v "${PWD}:/app" \
     -w /app \
     snyk/snyk:alpine \
-    snyk iac test --json > "${REPORTS_DIR}/snyk-iac.json"
+    snyk iac test --json-file-output="${REPORTS_DIR}/snyk-iac.json"
   scan_exit=$?
   set -e
 
@@ -44,11 +45,17 @@ if [[ "${report_status}" == "enabled" ]]; then
   fi
 
   echo "[INFO] Generating HTML report..."
+  set +e
   docker run --rm \
     -v "${PWD}:/work" \
     -w /work \
-    node:20-alpine \
+    node:24-alpine \
     sh -c "npm -s i -g snyk-to-html >/dev/null 2>&1 && cat ${REPORTS_DIR}/snyk-iac.json | snyk-to-html -o ${REPORTS_DIR}/snyk-iac.html"
+  html_exit=$?
+  set -e
+  if [[ ${html_exit} -ne 0 ]]; then
+    echo "[WARN] Could not generate HTML report for Snyk IaC. Keeping JSON output only."
+  fi
 else
   echo "[INFO] Running Snyk IaC..."
   set +e

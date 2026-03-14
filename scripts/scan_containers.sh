@@ -42,6 +42,7 @@ fi
 
 mkdir -p "${REPORTS_DIR}"
 overall_issue_exit=0
+overall_error_exit=0
 
 extract_repo_path() {
   local repo="$1"
@@ -87,6 +88,8 @@ for dir in "${ROOT_DIR}"/*; do
   image_ref="${container_repository}:${image_tag}"
   echo "[INFO] Running Snyk Container scan for ${image_ref}..."
   scan_exit=0
+  html_exit=0
+  monitor_exit=0
 
   if [[ "${report_status}" == "enabled" ]]; then
     safe_name="$(echo "${image_ref}" | tr '/:' '__')"
@@ -97,19 +100,27 @@ for dir in "${ROOT_DIR}"/*; do
       -v "${PWD}:/app" \
       -w /app \
       snyk/snyk:alpine \
-      snyk container test "${image_ref}" --file "${dockerfile_path}" --json > "${REPORTS_DIR}/snyk-container-${safe_name}.json"
+      snyk container test "${image_ref}" --file "${dockerfile_path}" --json-file-output="${REPORTS_DIR}/snyk-container-${safe_name}.json"
     scan_exit=$?
     set -e
 
     if [[ ${scan_exit} -gt 1 ]]; then
-      exit ${scan_exit}
+      echo "[ERROR] Snyk Container scan failed for ${image_ref} with exit code ${scan_exit}."
+      overall_error_exit=1
+      continue
     fi
 
+    set +e
     docker run --rm \
       -v "${PWD}:/work" \
       -w /work \
-      node:20-alpine \
+      node:24-alpine \
       sh -c "npm -s i -g snyk-to-html >/dev/null 2>&1 && cat ${REPORTS_DIR}/snyk-container-${safe_name}.json | snyk-to-html -o ${REPORTS_DIR}/snyk-container-${safe_name}.html"
+    html_exit=$?
+    set -e
+    if [[ ${html_exit} -ne 0 ]]; then
+      echo "[WARN] Could not generate HTML report for ${image_ref}. Keeping JSON output only."
+    fi
   else
     set +e
     docker run --rm \
@@ -123,7 +134,9 @@ for dir in "${ROOT_DIR}"/*; do
     set -e
 
     if [[ ${scan_exit} -gt 1 ]]; then
-      exit ${scan_exit}
+      echo "[ERROR] Snyk Container scan failed for ${image_ref} with exit code ${scan_exit}."
+      overall_error_exit=1
+      continue
     fi
   fi
 
@@ -134,6 +147,7 @@ for dir in "${ROOT_DIR}"/*; do
 
   if [[ "${monitor_status}" == "enabled" ]]; then
     echo "[INFO] Running Snyk Container monitor for ${image_ref}..."
+    set +e
     docker run --rm \
       -e SNYK_TOKEN="${SNYK_TOKEN}" \
       -v /var/run/docker.sock:/var/run/docker.sock \
@@ -141,9 +155,18 @@ for dir in "${ROOT_DIR}"/*; do
       -w /app \
       snyk/snyk:alpine \
       snyk container monitor "${image_ref}" --file "${dockerfile_path}"
+    monitor_exit=$?
+    set -e
+    if [[ ${monitor_exit} -ne 0 ]]; then
+      echo "[WARN] Snyk Container monitor failed for ${image_ref} with exit code ${monitor_exit}."
+    fi
   fi
 
 done
+
+if [[ ${overall_error_exit} -eq 1 ]]; then
+  exit 2
+fi
 
 if [[ ${overall_issue_exit} -eq 1 && "${fail_on_issues}" == "enabled" ]]; then
   exit 1

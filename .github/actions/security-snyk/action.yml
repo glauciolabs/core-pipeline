@@ -17,31 +17,51 @@ runs:
       shell: bash
       run: $GITHUB_ACTION_PATH/../../../scripts/install_yq.sh
 
-    - name: Run Snyk Code
-      shell: bash
-      env:
-        SNYK_CONFIG_FILE: ${{ inputs.snyk_config_file }}
-        SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
-      run: $GITHUB_ACTION_PATH/../../../scripts/snyk_code.sh
-
-    - name: Run Snyk IaC
-      shell: bash
-      env:
-        SNYK_CONFIG_FILE: ${{ inputs.snyk_config_file }}
-        SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
-      run: $GITHUB_ACTION_PATH/../../../scripts/snyk_iac.sh
-
-    - name: Run Snyk OSS
-      shell: bash
-      env:
-        SNYK_CONFIG_FILE: ${{ inputs.snyk_config_file }}
-        SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
-      run: $GITHUB_ACTION_PATH/../../../scripts/snyk_oss.sh
-
-    - name: Run Snyk Container
+    - name: Run all Snyk checks and aggregate exits
       shell: bash
       env:
         SNYK_CONFIG_FILE: ${{ inputs.snyk_config_file }}
         PIPELINE_MODE: ${{ inputs.pipeline_mode }}
         SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
-      run: $GITHUB_ACTION_PATH/../../../scripts/scan_containers.sh
+      run: |
+        set -euo pipefail
+
+        mkdir -p reports/snyk
+        summary_file="reports/snyk/snyk-exit-summary.txt"
+        : > "${summary_file}"
+
+        checks=(
+          "snyk_code:$GITHUB_ACTION_PATH/../../../scripts/snyk_code.sh"
+          "snyk_iac:$GITHUB_ACTION_PATH/../../../scripts/snyk_iac.sh"
+          "snyk_oss:$GITHUB_ACTION_PATH/../../../scripts/snyk_oss.sh"
+          "snyk_container:$GITHUB_ACTION_PATH/../../../scripts/scan_containers.sh"
+        )
+
+        final_exit=0
+
+        for check in "${checks[@]}"; do
+          name="${check%%:*}"
+          cmd="${check#*:}"
+
+          echo "[INFO] Starting ${name}..."
+          set +e
+          bash "${cmd}"
+          code=$?
+          set -e
+
+          status="ok"
+          if [[ ${code} -eq 1 ]]; then
+            status="issues_found"
+            if [[ ${final_exit} -eq 0 ]]; then
+              final_exit=1
+            fi
+          elif [[ ${code} -gt 1 ]]; then
+            status="execution_error"
+            final_exit=2
+          fi
+
+          printf "%s exit_code=%s status=%s\n" "${name}" "${code}" "${status}" | tee -a "${summary_file}"
+        done
+
+        echo "[INFO] Snyk checks completed with final exit=${final_exit}"
+        exit "${final_exit}"
