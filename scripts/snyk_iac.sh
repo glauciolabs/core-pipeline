@@ -11,6 +11,7 @@ fi
 
 status="$(yq -r '.snyk_iac.status // "disabled"' "${SNYK_CONFIG_FILE}")"
 report_status="$(yq -r '.snyk_iac.report // "disabled"' "${SNYK_CONFIG_FILE}")"
+fail_on_issues="$(yq -r '.snyk_iac.fail_on_issues // "enabled"' "${SNYK_CONFIG_FILE}")"
 
 if [[ "${status}" != "enabled" ]]; then
   echo "[INFO] snyk_iac is disabled. Skipping."
@@ -24,14 +25,23 @@ fi
 
 mkdir -p "${REPORTS_DIR}"
 
+scan_exit=0
+
 if [[ "${report_status}" == "enabled" ]]; then
   echo "[INFO] Running Snyk IaC (JSON report)..."
+  set +e
   docker run --rm \
     -e SNYK_TOKEN="${SNYK_TOKEN}" \
     -v "${PWD}:/app" \
     -w /app \
     snyk/snyk:alpine \
     snyk iac test --json > "${REPORTS_DIR}/snyk-iac.json"
+  scan_exit=$?
+  set -e
+
+  if [[ ${scan_exit} -gt 1 ]]; then
+    exit ${scan_exit}
+  fi
 
   echo "[INFO] Generating HTML report..."
   docker run --rm \
@@ -41,10 +51,24 @@ if [[ "${report_status}" == "enabled" ]]; then
     sh -c "npm -s i -g snyk-to-html >/dev/null 2>&1 && cat ${REPORTS_DIR}/snyk-iac.json | snyk-to-html -o ${REPORTS_DIR}/snyk-iac.html"
 else
   echo "[INFO] Running Snyk IaC..."
+  set +e
   docker run --rm \
     -e SNYK_TOKEN="${SNYK_TOKEN}" \
     -v "${PWD}:/app" \
     -w /app \
     snyk/snyk:alpine \
     snyk iac test
+  scan_exit=$?
+  set -e
+
+  if [[ ${scan_exit} -gt 1 ]]; then
+    exit ${scan_exit}
+  fi
+fi
+
+if [[ ${scan_exit} -eq 1 ]]; then
+  echo "[WARN] Snyk IaC found issues."
+  if [[ "${fail_on_issues}" == "enabled" ]]; then
+    exit 1
+  fi
 fi

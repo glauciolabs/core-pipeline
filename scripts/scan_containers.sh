@@ -19,6 +19,7 @@ fi
 status="$(yq -r '.snyk_container.status // "disabled"' "${SNYK_CONFIG_FILE}")"
 monitor_status="$(yq -r '.snyk_container.monitor // "disabled"' "${SNYK_CONFIG_FILE}")"
 report_status="$(yq -r '.snyk_container.report // "disabled"' "${SNYK_CONFIG_FILE}")"
+fail_on_issues="$(yq -r '.snyk_container.fail_on_issues // "enabled"' "${SNYK_CONFIG_FILE}")"
 if [[ "${status}" != "enabled" ]]; then
   echo "[INFO] snyk_container is disabled. Skipping."
   exit 0
@@ -40,6 +41,7 @@ if [[ ! -d "${ROOT_DIR}" ]]; then
 fi
 
 mkdir -p "${REPORTS_DIR}"
+overall_issue_exit=0
 
 extract_repo_path() {
   local repo="$1"
@@ -78,9 +80,11 @@ for dir in "${ROOT_DIR}"/*; do
 
   image_ref="${container_repository}:${container_tag}"
   echo "[INFO] Running Snyk Container scan for ${image_ref}..."
+  scan_exit=0
 
   if [[ "${report_status}" == "enabled" ]]; then
     safe_name="$(echo "${image_ref}" | tr '/:' '__')"
+    set +e
     docker run --rm \
       -e SNYK_TOKEN="${SNYK_TOKEN}" \
       -v /var/run/docker.sock:/var/run/docker.sock \
@@ -88,6 +92,12 @@ for dir in "${ROOT_DIR}"/*; do
       -w /app \
       snyk/snyk:alpine \
       snyk container test "${image_ref}" --file "${dockerfile_path}" --json > "${REPORTS_DIR}/snyk-container-${safe_name}.json"
+    scan_exit=$?
+    set -e
+
+    if [[ ${scan_exit} -gt 1 ]]; then
+      exit ${scan_exit}
+    fi
 
     docker run --rm \
       -v "${PWD}:/work" \
@@ -95,6 +105,7 @@ for dir in "${ROOT_DIR}"/*; do
       node:20-alpine \
       sh -c "npm -s i -g snyk-to-html >/dev/null 2>&1 && cat ${REPORTS_DIR}/snyk-container-${safe_name}.json | snyk-to-html -o ${REPORTS_DIR}/snyk-container-${safe_name}.html"
   else
+    set +e
     docker run --rm \
       -e SNYK_TOKEN="${SNYK_TOKEN}" \
       -v /var/run/docker.sock:/var/run/docker.sock \
@@ -102,6 +113,17 @@ for dir in "${ROOT_DIR}"/*; do
       -w /app \
       snyk/snyk:alpine \
       snyk container test "${image_ref}" --file "${dockerfile_path}"
+    scan_exit=$?
+    set -e
+
+    if [[ ${scan_exit} -gt 1 ]]; then
+      exit ${scan_exit}
+    fi
+  fi
+
+  if [[ ${scan_exit} -eq 1 ]]; then
+    echo "[WARN] Snyk Container found issues for ${image_ref}."
+    overall_issue_exit=1
   fi
 
   if [[ "${monitor_status}" == "enabled" ]]; then
@@ -116,3 +138,7 @@ for dir in "${ROOT_DIR}"/*; do
   fi
 
 done
+
+if [[ ${overall_issue_exit} -eq 1 && "${fail_on_issues}" == "enabled" ]]; then
+  exit 1
+fi

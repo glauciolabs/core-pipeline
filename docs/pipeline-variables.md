@@ -52,20 +52,25 @@ snyk_code:
   status: enabled
   monitor: disabled
   report: enabled
+  fail_on_issues: disabled
 snyk_iac:
   status: disabled
+  fail_on_issues: disabled
 snyk_oss:
   status: enabled
+  fail_on_issues: disabled
 snyk_container:
   status: disabled
   monitor: disabled
   report: disabled
+  fail_on_issues: disabled
 ```
 
 Supported toggles per check:
 - `status`: `enabled` or `disabled`
 - `monitor`: `enabled` or `disabled` (OSS and Container)
 - `report`: `enabled` or `disabled` (outputs HTML + JSON)
+- `fail_on_issues`: `enabled` or `disabled` (exit `1` when findings exist)
 
 ## Dual registry push
 If `REGISTRY` is set, images are pushed to both:
