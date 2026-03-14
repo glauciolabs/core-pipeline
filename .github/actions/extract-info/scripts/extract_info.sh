@@ -84,7 +84,6 @@ esac
   echo "app_project=${app_project}"
   echo "environment=${environment}"
   echo "repo_url=${repo_url}"
-  echo "cluster_url=${cluster_url}"
   echo "argocd_project_namespace=${argocd_project_namespace}"
   echo "namespace=${namespace_environment}"
   echo "tag_exists=${tag_exists}"
