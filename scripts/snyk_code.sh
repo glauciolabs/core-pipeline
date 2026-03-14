@@ -13,6 +13,7 @@ status="$(yq -r '.snyk_code.status // "disabled"' "${SNYK_CONFIG_FILE}")"
 monitor_status="$(yq -r '.snyk_code.monitor // "disabled"' "${SNYK_CONFIG_FILE}")"
 report_status="$(yq -r '.snyk_code.report // "disabled"' "${SNYK_CONFIG_FILE}")"
 fail_on_issues="$(yq -r '.snyk_code.fail_on_issues // "enabled"' "${SNYK_CONFIG_FILE}")"
+severity_threshold="$(yq -r '.snyk_code.severity_threshold // .snyk_global.severity_threshold // "low"' "${SNYK_CONFIG_FILE}")"
 if [[ "${status}" != "enabled" ]]; then
   echo "[INFO] snyk_code is disabled. Skipping."
   exit 0
@@ -36,7 +37,7 @@ if [[ "${report_status}" == "enabled" ]]; then
     -v "${PWD}:/app" \
     -w /app \
     snyk/snyk:alpine \
-    snyk code test --json > "${REPORTS_DIR}/snyk-code.json"
+    snyk code test --severity-threshold="${severity_threshold}" --json > "${REPORTS_DIR}/snyk-code.json"
   scan_exit=$?
   set -e
 
@@ -64,7 +65,7 @@ else
     -v "${PWD}:/app" \
     -w /app \
     snyk/snyk:alpine \
-    snyk code test
+    snyk code test --severity-threshold="${severity_threshold}"
   scan_exit=$?
   set -e
 

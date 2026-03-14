@@ -12,6 +12,7 @@ fi
 status="$(yq -r '.snyk_iac.status // "disabled"' "${SNYK_CONFIG_FILE}")"
 report_status="$(yq -r '.snyk_iac.report // "disabled"' "${SNYK_CONFIG_FILE}")"
 fail_on_issues="$(yq -r '.snyk_iac.fail_on_issues // "enabled"' "${SNYK_CONFIG_FILE}")"
+severity_threshold="$(yq -r '.snyk_iac.severity_threshold // .snyk_global.severity_threshold // "low"' "${SNYK_CONFIG_FILE}")"
 
 if [[ "${status}" != "enabled" ]]; then
   echo "[INFO] snyk_iac is disabled. Skipping."
@@ -36,7 +37,7 @@ if [[ "${report_status}" == "enabled" ]]; then
     -v "${PWD}:/app" \
     -w /app \
     snyk/snyk:alpine \
-    snyk iac test --json-file-output="${REPORTS_DIR}/snyk-iac.json"
+    snyk iac test --severity-threshold="${severity_threshold}" --json-file-output="${REPORTS_DIR}/snyk-iac.json"
   scan_exit=$?
   set -e
 
@@ -64,7 +65,7 @@ else
     -v "${PWD}:/app" \
     -w /app \
     snyk/snyk:alpine \
-    snyk iac test
+    snyk iac test --severity-threshold="${severity_threshold}"
   scan_exit=$?
   set -e
 

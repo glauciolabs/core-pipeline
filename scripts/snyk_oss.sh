@@ -13,6 +13,7 @@ status="$(yq -r '.snyk_oss.status // "disabled"' "${SNYK_CONFIG_FILE}")"
 monitor_status="$(yq -r '.snyk_oss.monitor // "disabled"' "${SNYK_CONFIG_FILE}")"
 report_status="$(yq -r '.snyk_oss.report // "disabled"' "${SNYK_CONFIG_FILE}")"
 fail_on_issues="$(yq -r '.snyk_oss.fail_on_issues // "enabled"' "${SNYK_CONFIG_FILE}")"
+severity_threshold="$(yq -r '.snyk_oss.severity_threshold // .snyk_global.severity_threshold // "low"' "${SNYK_CONFIG_FILE}")"
 
 if [[ "${status}" != "enabled" ]]; then
   echo "[INFO] snyk_oss is disabled. Skipping."
@@ -38,7 +39,7 @@ if [[ "${report_status}" == "enabled" ]]; then
     -v "${PWD}:/app" \
     -w /app \
     snyk/snyk:alpine \
-    snyk test --all-projects --json-file-output="${REPORTS_DIR}/snyk-oss.json"
+    snyk test --all-projects --severity-threshold="${severity_threshold}" --json-file-output="${REPORTS_DIR}/snyk-oss.json"
   scan_exit=$?
   set -e
 
@@ -66,7 +67,7 @@ else
     -v "${PWD}:/app" \
     -w /app \
     snyk/snyk:alpine \
-    snyk test --all-projects
+    snyk test --all-projects --severity-threshold="${severity_threshold}"
   scan_exit=$?
   set -e
 

@@ -20,6 +20,7 @@ status="$(yq -r '.snyk_container.status // "disabled"' "${SNYK_CONFIG_FILE}")"
 monitor_status="$(yq -r '.snyk_container.monitor // "disabled"' "${SNYK_CONFIG_FILE}")"
 report_status="$(yq -r '.snyk_container.report // "disabled"' "${SNYK_CONFIG_FILE}")"
 fail_on_issues="$(yq -r '.snyk_container.fail_on_issues // "enabled"' "${SNYK_CONFIG_FILE}")"
+severity_threshold="$(yq -r '.snyk_container.severity_threshold // .snyk_global.severity_threshold // "low"' "${SNYK_CONFIG_FILE}")"
 if [[ "${status}" != "enabled" ]]; then
   echo "[INFO] snyk_container is disabled. Skipping."
   exit 0
@@ -86,10 +87,38 @@ for dir in "${ROOT_DIR}"/*; do
   fi
 
   image_ref="${container_repository}:${image_tag}"
+  scan_ref="${image_ref}"
+  can_monitor="true"
   echo "[INFO] Running Snyk Container scan for ${image_ref}..."
   scan_exit=0
   html_exit=0
   monitor_exit=0
+
+  if ! docker image inspect "${image_ref}" >/dev/null 2>&1; then
+    echo "[INFO] Image ${image_ref} not available locally. Trying pull..."
+    set +e
+    docker pull "${image_ref}" >/dev/null 2>&1
+    pull_exit=$?
+    set -e
+    if [[ ${pull_exit} -ne 0 ]]; then
+      # Fallback: rebuild locally in this job so container scan does not depend on remote pull.
+      local_scan_ref="local/$(basename "${dir}"):${image_tag}-snyk-scan"
+      echo "[WARN] Could not pull ${image_ref}. Building local fallback image ${local_scan_ref} for Snyk scan..."
+      set +e
+      docker build \
+        -t "${local_scan_ref}" \
+        -f "${dockerfile_path}" "${ROOT_DIR}" >/dev/null 2>&1
+      build_scan_exit=$?
+      set -e
+      if [[ ${build_scan_exit} -ne 0 ]]; then
+        echo "[ERROR] Failed to prepare local image for scan (${image_ref})."
+        overall_error_exit=1
+        continue
+      fi
+      scan_ref="${local_scan_ref}"
+      can_monitor="false"
+    fi
+  fi
 
   if [[ "${report_status}" == "enabled" ]]; then
     safe_name="$(echo "${image_ref}" | tr '/:' '__')"
@@ -104,7 +133,7 @@ for dir in "${ROOT_DIR}"/*; do
       -v "${PWD}:/app" \
       -w /app \
       snyk/snyk:alpine \
-      snyk container test "${image_ref}" "${dockerfile_arg[@]}" --json-file-output="${REPORTS_DIR}/snyk-container-${safe_name}.json"
+      snyk container test "${scan_ref}" "${dockerfile_arg[@]}" --severity-threshold="${severity_threshold}" --json-file-output="${REPORTS_DIR}/snyk-container-${safe_name}.json"
     scan_exit=$?
     set -e
 
@@ -137,7 +166,7 @@ for dir in "${ROOT_DIR}"/*; do
       -v "${PWD}:/app" \
       -w /app \
       snyk/snyk:alpine \
-      snyk container test "${image_ref}" "${dockerfile_arg[@]}"
+      snyk container test "${scan_ref}" "${dockerfile_arg[@]}" --severity-threshold="${severity_threshold}"
     scan_exit=$?
     set -e
 
@@ -153,7 +182,7 @@ for dir in "${ROOT_DIR}"/*; do
     overall_issue_exit=1
   fi
 
-  if [[ "${monitor_status}" == "enabled" ]]; then
+  if [[ "${monitor_status}" == "enabled" && "${can_monitor}" == "true" ]]; then
     echo "[INFO] Running Snyk Container monitor for ${image_ref}..."
     set +e
     dockerfile_arg=()
@@ -172,6 +201,8 @@ for dir in "${ROOT_DIR}"/*; do
     if [[ ${monitor_exit} -ne 0 ]]; then
       echo "[WARN] Snyk Container monitor failed for ${image_ref} with exit code ${monitor_exit}."
     fi
+  elif [[ "${monitor_status}" == "enabled" && "${can_monitor}" != "true" ]]; then
+    echo "[WARN] Skipping Snyk Container monitor for ${image_ref} (local fallback image used)."
   fi
 
 done
