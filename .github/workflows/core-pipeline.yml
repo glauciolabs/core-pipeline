@@ -146,12 +146,16 @@ jobs:
       - name: Log in to Docker Hub
         if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != '' }}
         uses: docker/login-action@v3
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
         with:
           username: ${{ env.DOCKERHUB_USERNAME }}
           password: ${{ env.DOCKERHUB_TOKEN }}
       - name: Log in to Custom Registry
         if: ${{ env.REGISTRY != '' }}
         uses: docker/login-action@v3
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ env.REGISTRY_USERNAME }}
@@ -192,7 +196,9 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload Snyk reports
         if: ${{ always() && steps.snyk_reports.outputs.found == 'true' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
         with:
           name: snyk-reports
           path: reports/snyk
