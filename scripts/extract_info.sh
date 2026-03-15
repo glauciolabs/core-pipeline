@@ -70,16 +70,6 @@ else
   argocd_project_namespace="${namespace}-${environment}"
 fi
 
-cluster_url=""
-case "${environment}" in
-  develop)
-    cluster_url="${CLUSTER_DEVELOP:-}"
-    ;;
-  production)
-    cluster_url="${CLUSTER_PRODUCTION:-}"
-    ;;
-esac
-
 {
   echo "org_name=${org_name}"
   echo "app_name=${app_name}"
@@ -87,7 +77,6 @@ esac
   echo "app_project=${app_project}"
   echo "environment=${environment}"
   echo "repo_url=${repo_url}"
-  echo "cluster_url=${cluster_url}"
   echo "argocd_project_namespace=${argocd_project_namespace}"
   echo "namespace=${namespace_environment}"
   echo "tag_exists=${tag_exists}"

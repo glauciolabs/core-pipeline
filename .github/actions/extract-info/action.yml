@@ -34,8 +34,6 @@ outputs:
     value: ${{ steps.extract.outputs.environment }}
   repo_url:
     value: ${{ steps.extract.outputs.repo_url }}
-  cluster_url:
-    value: ${{ steps.extract.outputs.cluster_url }}
   argocd_project_namespace:
     value: ${{ steps.extract.outputs.argocd_project_namespace }}
   namespace:
