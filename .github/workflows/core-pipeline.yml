@@ -6,6 +6,9 @@ env:
 on:
   workflow_dispatch:
     inputs:
+      allowed_branches_regex:
+        type: string
+        default: "^(develop|master)$"
       pipeline_mode:
         type: choice
         options: [build_and_push, build_only, deploy_only]
@@ -41,6 +44,7 @@ on:
 
   workflow_call:
     inputs:
+      allowed_branches_regex: { type: string, default: "^(develop|master)$" }
       pipeline_mode: { type: string, default: build_and_push }
       namespace_override: { type: boolean, default: false }
       kustomization_overlay: { type: boolean, default: false }
@@ -77,9 +81,35 @@ defaults:
     shell: bash
 
 jobs:
+  branch-guard:
+    name: Branch Guard
+    runs-on: ubuntu-latest
+    outputs:
+      allowed: ${{ steps.guard.outputs.allowed }}
+    steps:
+      - name: Check allowed branches
+        id: guard
+        run: |
+          set -euo pipefail
+          branch="${GITHUB_REF_NAME:-}"
+          allowed_regex='${{ inputs.allowed_branches_regex }}'
+          if [[ -z "${allowed_regex}" ]]; then
+            allowed_regex='^(develop|master)$'
+          fi
+
+          if [[ "${branch}" =~ ${allowed_regex} ]]; then
+            echo "allowed=true" >> "$GITHUB_OUTPUT"
+            echo "[INFO] Branch '${branch}' allowed by regex '${allowed_regex}'."
+          else
+            echo "allowed=false" >> "$GITHUB_OUTPUT"
+            echo "[WARN] Branch '${branch}' not allowed by regex '${allowed_regex}'. Skipping pipeline jobs."
+          fi
+
   extract-info:
     name: Extract Info
     runs-on: ubuntu-latest
+    needs: branch-guard
+    if: ${{ needs.branch-guard.outputs.allowed == 'true' }}
     outputs:
       repo_tag: ${{ steps.info.outputs.repo_tag }}
       tag_exists: ${{ steps.info.outputs.tag_exists }}
@@ -106,13 +136,14 @@ jobs:
   build-containers:
     name: Build Containers
     runs-on: ubuntu-latest
-    needs: extract-info
+    needs: [branch-guard, extract-info]
     outputs:
       built_any: ${{ steps.build.outputs.built_any }}
       noop_existing: ${{ steps.build.outputs.noop_existing }}
     if: >-
       ${{
-        inputs.pipeline_mode != 'deploy_only'
+        needs.branch-guard.outputs.allowed == 'true'
+        && inputs.pipeline_mode != 'deploy_only'
         && inputs.archetype == 'containers'
         && needs.extract-info.outputs.tag_exists != 'true'
       }}
@@ -136,7 +167,7 @@ jobs:
   security:
     name: Security
     runs-on: ubuntu-latest
-    needs: [extract-info, build-containers]
+    needs: [branch-guard, extract-info, build-containers]
     env:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -145,7 +176,8 @@ jobs:
       REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD != '' && secrets.REGISTRY_PASSWORD || secrets.GIT_REGISTRY_TOKEN || github.token }}
     if: >-
       ${{
-        inputs.pipeline_mode != 'deploy_only'
+        needs.branch-guard.outputs.allowed == 'true'
+        && inputs.pipeline_mode != 'deploy_only'
         && needs.extract-info.outputs.tag_exists != 'true'
         && needs.build-containers.outputs.noop_existing != 'true'
         && (needs.build-containers.result == 'success' || needs.build-containers.result == 'skipped')
@@ -216,10 +248,11 @@ jobs:
   tag:
     name: Git Tag
     runs-on: ubuntu-latest
-    needs: [extract-info, build-containers, security]
+    needs: [branch-guard, extract-info, build-containers, security]
     if: >-
       ${{
         always()
+        && needs.branch-guard.outputs.allowed == 'true'
         && inputs.pipeline_mode != 'build_only'
         && needs.extract-info.result == 'success'
         && (needs.build-containers.result == 'success' || needs.build-containers.result == 'skipped')
@@ -241,10 +274,11 @@ jobs:
   deploy-argocd:
     name: Deploy via Argo CD
     runs-on: ubuntu-latest
-    needs: [extract-info, tag, security]
+    needs: [branch-guard, extract-info, tag, security]
     if: >-
       ${{
         always()
+        && needs.branch-guard.outputs.allowed == 'true'
         && inputs.pipeline_mode != 'build_only'
         && inputs.gitops_app == 'argocd'
         && needs.extract-info.result == 'success'
