@@ -5,6 +5,13 @@ inputs:
     description: "Docker build behavior"
     required: false
     default: "build_and_push"
+outputs:
+  built_any:
+    description: "Whether at least one image was built in this run"
+    value: ${{ steps.build_run.outputs.built_any }}
+  noop_existing:
+    description: "Whether build was skipped because all image tags already existed"
+    value: ${{ steps.build_run.outputs.noop_existing }}
 
 runs:
   using: "composite"
@@ -53,6 +60,7 @@ runs:
         password: ${{ env.REGISTRY_PASSWORD }}
 
     - name: Build containers
+      id: build_run
       shell: bash
       env:
         DOCKER_OPTIONS: ${{ inputs.docker_options }}

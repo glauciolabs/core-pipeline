@@ -53,6 +53,8 @@ full_tag_name="${repo_tag_base}-${commit_id}-${environment}"
 tag_exists="false"
 if git tag -l | grep -Fxq "$full_tag_name"; then
   tag_exists="true"
+elif git ls-remote --tags --refs origin "refs/tags/${full_tag_name}" 2>/dev/null | grep -q "${full_tag_name}$"; then
+  tag_exists="true"
 fi
 
 kustomization_path="./app/${environment}"

@@ -21,7 +21,14 @@ load_release_notes() {
   return 1
 }
 
-if [[ "${TAG_EXISTS}" == "true" ]]; then
+git fetch --tags --force origin >/dev/null 2>&1 || true
+
+tag_exists_remote="false"
+if git ls-remote --tags --refs origin "refs/tags/${REPO_TAG}" 2>/dev/null | grep -q "${REPO_TAG}$"; then
+  tag_exists_remote="true"
+fi
+
+if [[ "${TAG_EXISTS}" == "true" || "${tag_exists_remote}" == "true" ]]; then
   echo "Tag ${REPO_TAG} already exists. Skipping."
 else
   git config user.name "core-pipelines"
@@ -29,8 +36,23 @@ else
 
   commit_message=$(git log --format=%B -n 1 | head -n 1)
 
-  git tag -a "${REPO_TAG}" -m "${commit_message}"
-  git push origin "${REPO_TAG}"
+  if ! git tag -a "${REPO_TAG}" -m "${commit_message}" 2>/tmp/git-tag.err; then
+    if git rev-parse "refs/tags/${REPO_TAG}" >/dev/null 2>&1; then
+      echo "Tag ${REPO_TAG} already exists locally. Continuing."
+    else
+      cat /tmp/git-tag.err || true
+      exit 1
+    fi
+  fi
+
+  if ! git push origin "${REPO_TAG}" 2>/tmp/git-push-tag.err; then
+    if git ls-remote --tags --refs origin "refs/tags/${REPO_TAG}" 2>/dev/null | grep -q "${REPO_TAG}$"; then
+      echo "Tag ${REPO_TAG} already exists on remote. Continuing."
+    else
+      cat /tmp/git-push-tag.err || true
+      exit 1
+    fi
+  fi
 fi
 
 if [[ "${CREATE_RELEASE}" == "true" ]] || [[ "${ENVIRONMENT}" == "production" ]]; then

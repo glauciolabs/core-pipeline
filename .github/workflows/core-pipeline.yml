@@ -107,13 +107,22 @@ jobs:
     name: Build Containers
     runs-on: ubuntu-latest
     needs: extract-info
-    if: ${{ inputs.pipeline_mode != 'deploy_only' && inputs.archetype == 'containers' }}
+    outputs:
+      built_any: ${{ steps.build.outputs.built_any }}
+      noop_existing: ${{ steps.build.outputs.noop_existing }}
+    if: >-
+      ${{
+        inputs.pipeline_mode != 'deploy_only'
+        && inputs.archetype == 'containers'
+        && needs.extract-info.outputs.tag_exists != 'true'
+      }}
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
         with: { fetch-depth: 0 }
 
       - name: Build containers
+        id: build
         uses: glauciolabs/core-pipeline/.github/actions/build-containers@add2
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -137,6 +146,8 @@ jobs:
     if: >-
       ${{
         inputs.pipeline_mode != 'deploy_only'
+        && needs.extract-info.outputs.tag_exists != 'true'
+        && needs.build-containers.outputs.noop_existing != 'true'
         && (needs.build-containers.result == 'success' || needs.build-containers.result == 'skipped')
       }}
     steps:

@@ -3,6 +3,22 @@ set -euo pipefail
 
 ROOT_DIR="container"
 DOCKER_OPTIONS="${DOCKER_OPTIONS:-build_and_push}"
+built_any="false"
+noop_existing="false"
+processed_services=0
+existing_services=0
+built_services=0
+
+emit_outputs() {
+  if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+    {
+      echo "built_any=${built_any}"
+      echo "noop_existing=${noop_existing}"
+    } >> "${GITHUB_OUTPUT}"
+  fi
+}
+
+trap emit_outputs EXIT
 
 if [[ "$DOCKER_OPTIONS" == "disable" || "$DOCKER_OPTIONS" == "disable_docker" ]]; then
   echo "[INFO] DOCKER_OPTIONS is disabled. Skipping container build."
@@ -75,10 +91,6 @@ for dir in "${ROOT_DIR}"/*; do
   repo_tag=$(yq -r '.app.version' "${info_file}")
 
   branch_name="${GITHUB_REF_NAME:-}"
-  is_master_branch="false"
-  if [[ "${branch_name}" == "master" ]]; then
-    is_master_branch="true"
-  fi
   image_tag="${container_tag}"
   if [[ -n "${branch_name}" && "${branch_name}" != "master" && "${image_tag}" != *-dev ]]; then
     image_tag="${image_tag}-dev"
@@ -97,6 +109,7 @@ for dir in "${ROOT_DIR}"/*; do
     continue
   fi
 
+  processed_services=$((processed_services + 1))
   image_ref="${container_repository}:${image_tag}"
   secondary_image_ref=""
   if [[ -n "${REGISTRY:-}" ]]; then
@@ -135,12 +148,8 @@ for dir in "${ROOT_DIR}"/*; do
   if [[ "${DOCKER_OPTIONS}" == "build_and_push" ]]; then
     echo "Checking if image ${image_ref} exists..."
     if docker manifest inspect "${image_ref}" > /dev/null 2>&1; then
-      if [[ "${is_master_branch}" == "true" ]]; then
-        echo ">> [FAIL] Image ${image_ref} already exists."
-        echo ">> [FAIL] Bump app.version/container.tag before running build_and_push again."
-        exit 1
-      fi
-      echo ">> [WARN] Image ${image_ref} already exists on non-master branch. Skipping this service."
+      echo ">> [WARN] Image ${image_ref} already exists. Skipping this service."
+      existing_services=$((existing_services + 1))
       continue
     else
       echo ">> Image ${image_ref} does not exist. Building and pushing per platform..."
@@ -148,6 +157,7 @@ for dir in "${ROOT_DIR}"/*; do
 
     arch_image_refs=()
     secondary_arch_image_refs=()
+    skip_service_due_existing_arch="false"
 
     for p in "${PLATFORMS[@]}"; do
       plat="$(echo "${p}" | xargs)"
@@ -162,22 +172,16 @@ for dir in "${ROOT_DIR}"/*; do
 
       echo "Checking if tag ${arch_tag} exists..."
       if docker manifest inspect "${arch_tag}" > /dev/null 2>&1; then
-        if [[ "${is_master_branch}" == "true" ]]; then
-          echo ">> [FAIL] Tag ${arch_tag} already exists. Not overwriting."
-          exit 1
-        fi
-        echo ">> [WARN] Tag ${arch_tag} already exists on non-master branch. Skipping this service."
+        echo ">> [WARN] Tag ${arch_tag} already exists. Skipping this service."
+        skip_service_due_existing_arch="true"
         arch_image_refs=()
         break
       fi
       if [[ -n "${secondary_arch_tag}" ]]; then
         echo "Checking if tag ${secondary_arch_tag} exists..."
         if docker manifest inspect "${secondary_arch_tag}" > /dev/null 2>&1; then
-          if [[ "${is_master_branch}" == "true" ]]; then
-            echo ">> [FAIL] Tag ${secondary_arch_tag} already exists. Not overwriting."
-            exit 1
-          fi
-          echo ">> [WARN] Tag ${secondary_arch_tag} already exists on non-master branch. Skipping this service."
+          echo ">> [WARN] Tag ${secondary_arch_tag} already exists. Skipping this service."
+          skip_service_due_existing_arch="true"
           arch_image_refs=()
           break
         fi
@@ -204,6 +208,9 @@ for dir in "${ROOT_DIR}"/*; do
     done
 
     if [[ ${#arch_image_refs[@]} -eq 0 ]]; then
+      if [[ "${skip_service_due_existing_arch}" == "true" ]]; then
+        existing_services=$((existing_services + 1))
+      fi
       echo ">> [INFO] No new arch tags were built for ${image_ref}. Continuing."
       continue
     fi
@@ -216,6 +223,7 @@ for dir in "${ROOT_DIR}"/*; do
       "${arch_image_refs[@]}"
 
     echo "Multi-arch image ${image_ref} created successfully."
+    built_services=$((built_services + 1))
 
     if [[ -n "${secondary_image_ref}" ]]; then
       echo "Creating multi-arch manifest for ${secondary_image_ref} from tags:"
@@ -251,3 +259,13 @@ done
 
 echo "========================================"
 echo "Build loop finished."
+
+if [[ "${DOCKER_OPTIONS}" == "build_and_push" ]]; then
+  if [[ ${built_services} -gt 0 ]]; then
+    built_any="true"
+  fi
+  if [[ ${processed_services} -gt 0 && ${built_services} -eq 0 && ${existing_services} -eq ${processed_services} ]]; then
+    noop_existing="true"
+    echo "[INFO] Build was a no-op because all target image tags already existed."
+  fi
+fi
