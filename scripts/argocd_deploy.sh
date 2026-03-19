@@ -69,6 +69,33 @@ else
   fi
 fi
 
+if [[ "${DEPLOYMENT_MODE}" != "application" ]]; then
+  echo "Validating app target revision: ${REPO_TAG}"
+  revision_ok=false
+  for _ in {1..10}; do
+    current_revision="$(
+      argocd app get "${app_full}" \
+        --grpc-web \
+        --insecure \
+        --server "${ARGOCD_SERVER}" \
+        --auth-token "${ARGOCD_TOKEN}" \
+        -o json | jq -r '.spec.source.targetRevision // ""'
+    )"
+
+    if [[ "${current_revision}" == "${REPO_TAG}" ]]; then
+      revision_ok=true
+      break
+    fi
+
+    sleep 2
+  done
+
+  if [[ "${revision_ok}" != "true" ]]; then
+    echo "[ERROR] App ${app_full} target revision mismatch. Expected: ${REPO_TAG} | Current: ${current_revision}"
+    exit 1
+  fi
+fi
+
 echo "Syncing app ${app_full}"
 attempt=1
 max_attempts=5
@@ -80,7 +107,6 @@ while [[ ${attempt} -le ${max_attempts} ]]; do
     --insecure \
     --server "${ARGOCD_SERVER}" \
     --auth-token "${ARGOCD_TOKEN}" \
-    --revision "${REPO_TAG}" \
     --project "${project}" \
     --prune \
     --force \
