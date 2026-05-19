@@ -1,0 +1,72 @@
+name: "Extract Build Info"
+description: "Read info.yaml and compute build metadata"
+inputs:
+  namespace_override:
+    description: "Use app namespace without environment suffix"
+    required: false
+    default: "false"
+  kustomization_overlay:
+    description: "Use overlays folder"
+    required: false
+    default: "false"
+  cluster_prod:
+    description: "Deprecated. Use cluster_develop/cluster_production instead."
+    required: false
+    default: ""
+  cluster_develop:
+    description: "Develop cluster API endpoint"
+    required: false
+    default: ""
+  cluster_production:
+    description: "Production cluster API endpoint"
+    required: false
+    default: ""
+outputs:
+  org_name:
+    value: ${{ steps.extract.outputs.org_name }}
+  app_name:
+    value: ${{ steps.extract.outputs.app_name }}
+  repo_tag:
+    value: ${{ steps.extract.outputs.repo_tag }}
+  app_project:
+    value: ${{ steps.extract.outputs.app_project }}
+  environment:
+    value: ${{ steps.extract.outputs.environment }}
+  repo_url:
+    value: ${{ steps.extract.outputs.repo_url }}
+  argocd_project_namespace:
+    value: ${{ steps.extract.outputs.argocd_project_namespace }}
+  namespace:
+    value: ${{ steps.extract.outputs.namespace }}
+  tag_exists:
+    value: ${{ steps.extract.outputs.tag_exists }}
+  kustomization_path:
+    value: ${{ steps.extract.outputs.kustomization_path }}
+  resource_group:
+    value: ${{ steps.extract.outputs.resource_group }}
+  cluster_name:
+    value: ${{ steps.extract.outputs.cluster_name }}
+  commit_id:
+    value: ${{ steps.extract.outputs.commit_id }}
+  last_tag_prefix:
+    value: ${{ steps.extract.outputs.last_tag_prefix }}
+  last_tag:
+    value: ${{ steps.extract.outputs.last_tag }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install yq
+      shell: bash
+      run: $GITHUB_ACTION_PATH/../../../scripts/install_yq.sh
+
+    - name: Extract info
+      id: extract
+      shell: bash
+      env:
+        NAMESPACE_OVERRIDE: ${{ inputs.namespace_override }}
+        KUSTOMIZATION_OVERLAY: ${{ inputs.kustomization_overlay }}
+        CLUSTER_DEVELOP: ${{ inputs.cluster_develop }}
+        CLUSTER_PRODUCTION: ${{ inputs.cluster_production }}
+        CLUSTER_PROD: ${{ inputs.cluster_prod }}
+      run: $GITHUB_ACTION_PATH/../../../scripts/extract_info.sh

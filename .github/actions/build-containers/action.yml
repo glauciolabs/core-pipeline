@@ -1,0 +1,67 @@
+name: "Build Containers"
+description: "Build and optionally push containers"
+inputs:
+  docker_options:
+    description: "Docker build behavior"
+    required: false
+    default: "build_and_push"
+outputs:
+  built_any:
+    description: "Whether at least one image was built in this run"
+    value: ${{ steps.build_run.outputs.built_any }}
+  noop_existing:
+    description: "Whether build was skipped because all image tags already existed"
+    value: ${{ steps.build_run.outputs.noop_existing }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install yq
+      shell: bash
+      run: $GITHUB_ACTION_PATH/../../../scripts/install_yq.sh
+
+    - name: Enable containerd snapshotter for Docker
+      shell: bash
+      run: |
+        set -euxo pipefail
+        sudo mkdir -p /etc/docker
+        printf '{ "features": { "containerd-snapshotter": true } }\n' | sudo tee /etc/docker/daemon.json
+        sudo systemctl restart docker
+        docker info || true
+        docker buildx ls || true
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v4
+      env:
+        FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+    - name: Set up Buildx
+      uses: docker/setup-buildx-action@v4
+      env:
+        FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+    - name: Log in to Docker Hub
+      if: env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != ''
+      uses: docker/login-action@v4
+      env:
+        FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      with:
+        username: ${{ env.DOCKERHUB_USERNAME }}
+        password: ${{ env.DOCKERHUB_TOKEN }}
+
+    - name: Log in to Custom Registry
+      if: env.REGISTRY != '' && env.REGISTRY_USERNAME != '' && env.REGISTRY_PASSWORD != ''
+      uses: docker/login-action@v4
+      env:
+        FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ env.REGISTRY_USERNAME }}
+        password: ${{ env.REGISTRY_PASSWORD }}
+
+    - name: Build containers
+      id: build_run
+      shell: bash
+      env:
+        DOCKER_OPTIONS: ${{ inputs.docker_options }}
+      run: $GITHUB_ACTION_PATH/../../../scripts/build_containers.sh

@@ -1,0 +1,89 @@
+# Inputs and Secrets
+
+## Inputs
+- `pipeline_mode` (string)
+  - `build_and_push`, `build_only`, or `deploy_only`
+- `archetype` (string, required)
+  - `containers` or `k8s-apps`
+- `namespace_override` (boolean)
+  - If `true`, use the namespace without environment suffix
+- `kustomization_overlay` (boolean)
+  - If `true`, use `./app/<env>/overlays`
+- `helm_chart` (boolean)
+  - Reserved for future use
+- `gitops_app` (string)
+  - `argocd`
+- `argocd_deployment_mode` (string)
+  - `kustomize` or `application`
+- `argocd_application_manifest` (string)
+  - Path to an Argo CD Application manifest file (used when `argocd_deployment_mode=application`)
+- `release_policy` (string)
+  - `auto`, `always`, or `never`
+  - `auto`: creates release only for `production`
+  - `always`: always creates release (non-production as prerelease)
+  - `never`: does not create release
+- `release_notes_file` (string)
+  - Optional path to a release notes file in the repository.
+  - If omitted, pipeline tries `RELEASE_NOTES.md`, `.github/RELEASE_NOTES.md`, `CHANGELOG.md`, `CHANGES.md`.
+  - If none exists, GitHub auto-generated release notes are used.
+
+## Secrets
+- `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`
+  - Docker Hub credentials (optional)
+- `REGISTRY`, `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`, `GIT_REGISTRY_TOKEN`
+  - Custom registry credentials (optional)
+  - Fallback order for registry password: `REGISTRY_PASSWORD` -> `GIT_REGISTRY_TOKEN` -> `github.token`
+- `SNYK_TOKEN`
+  - Required if `snyk_job.yaml` enables `snyk_code` or `snyk_container`
+- `ARGOCD_SERVER`, `ARGOCD_TOKEN`
+  - Argo CD API access (required for `gitops_app: argocd`)
+- `GITOPS_SSH_PRIVATE_KEY`
+  - SSH key used by Argo CD/Flux to read the Git repository (recommended for private repos)
+- `CLUSTER_PROD`
+- `CLUSTER_DEVELOP`
+  - Cluster API endpoint for `develop`
+- `CLUSTER_PRODUCTION`
+  - Cluster API endpoint for `production` (branch `master`)
+
+## Snyk toggles
+Create a `snyk_job.yaml` at the repository root:
+```yaml
+snyk_code:
+  status: enabled
+  monitor: disabled
+  report: enabled
+  fail_on_issues: disabled
+snyk_iac:
+  status: disabled
+  fail_on_issues: disabled
+snyk_oss:
+  status: enabled
+  fail_on_issues: disabled
+snyk_container:
+  status: disabled
+  monitor: disabled
+  report: disabled
+  fail_on_issues: disabled
+```
+
+Supported toggles per check:
+- `status`: `enabled` or `disabled`
+- `monitor`: `enabled` or `disabled` (OSS and Container)
+- `report`: `enabled` or `disabled` (outputs HTML + JSON)
+- `fail_on_issues`: `enabled` or `disabled` (exit `1` when findings exist)
+
+If `snyk_job.yaml` is missing, the pipeline skips all Snyk scans.
+
+## Snyk reports in GitHub Actions
+- Reports are generated under `reports/snyk`.
+- The `security` job uploads them as the artifact `snyk-reports`.
+- The job summary also includes the aggregated Snyk exit codes from `reports/snyk/snyk-exit-summary.txt`.
+
+## Dual registry push
+If `REGISTRY` is set, images are pushed to both:
+- Primary: `container_repository` from `info.yaml`
+- Secondary: `${REGISTRY}/<repository-path>`
+
+## GHCR package visibility and repository linking
+- Package visibility (`public`/`private`) is controlled in GitHub Packages settings (org/user policy).
+- The pipeline publishes OCI labels (`org.opencontainers.image.source`, `url`, `revision`) so GHCR can associate images to the source repository.

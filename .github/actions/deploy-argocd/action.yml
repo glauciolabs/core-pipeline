@@ -1,0 +1,109 @@
+name: "Deploy via Argo CD"
+description: "Deploy application using Argo CD"
+inputs:
+  argocd_server:
+    description: "Argo CD API server"
+    required: true
+  argocd_token:
+    description: "Argo CD auth token"
+    required: true
+  gitops_ssh_private_key:
+    description: "SSH key for private repo access"
+    required: false
+    default: ""
+  repo_url:
+    description: "Git repo URL"
+    required: true
+  app_name:
+    description: "Application name"
+    required: true
+  app_project:
+    description: "Argo CD project"
+    required: true
+  cluster_url:
+    description: "Destination cluster API"
+    required: true
+  argocd_project_namespace:
+    description: "Namespace for Argo CD project"
+    required: true
+  namespace_override:
+    description: "Whether namespace override is enabled"
+    required: false
+    default: "false"
+  cluster_develop:
+    description: "Develop cluster API URL"
+    required: false
+    default: ""
+  cluster_production:
+    description: "Production cluster API URL"
+    required: false
+    default: ""
+  environment:
+    description: "Environment name"
+    required: true
+  kustomization_path:
+    description: "Kustomization path"
+    required: true
+  deployment_mode:
+    description: "Deployment mode: kustomize or application"
+    required: false
+    default: "kustomize"
+  application_manifest_path:
+    description: "Path to Argo CD Application manifest (YAML)"
+    required: false
+    default: ""
+  namespace:
+    description: "Destination namespace"
+    required: true
+  repo_tag:
+    description: "Git tag to deploy"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install tools
+      shell: bash
+      run: $GITHUB_ACTION_PATH/../../../scripts/install_argocd.sh
+
+    - name: Argo CD - ensure repo
+      shell: bash
+      env:
+        ARGOCD_SERVER: ${{ inputs.argocd_server }}
+        ARGOCD_TOKEN: ${{ inputs.argocd_token }}
+        GITOPS_SSH_PRIVATE_KEY: ${{ inputs.gitops_ssh_private_key }}
+        REPO_URL: ${{ inputs.repo_url }}
+        APP_NAME: ${{ inputs.app_name }}
+        APP_PROJECT: ${{ inputs.app_project }}
+      run: $GITHUB_ACTION_PATH/../../../scripts/argocd_repo.sh
+
+    - name: Argo CD - ensure project (with fallback)
+      shell: bash
+      env:
+        ARGOCD_SERVER: ${{ inputs.argocd_server }}
+        ARGOCD_TOKEN: ${{ inputs.argocd_token }}
+        APP_PROJECT: ${{ inputs.app_project }}
+        CLUSTER_URL: ${{ inputs.cluster_url }}
+        ARGOCD_PROJECT_NAMESPACE: ${{ inputs.argocd_project_namespace }}
+        REPO_URL: ${{ inputs.repo_url }}
+        NAMESPACE_OVERRIDE: ${{ inputs.namespace_override }}
+        CLUSTER_DEVELOP: ${{ inputs.cluster_develop }}
+        CLUSTER_PRODUCTION: ${{ inputs.cluster_production }}
+      run: $GITHUB_ACTION_PATH/../../../scripts/argocd_project.sh
+
+    - name: Argo CD - ensure app
+      shell: bash
+      env:
+        ARGOCD_SERVER: ${{ inputs.argocd_server }}
+        ARGOCD_TOKEN: ${{ inputs.argocd_token }}
+        APP_NAME: ${{ inputs.app_name }}
+        ENVIRONMENT: ${{ inputs.environment }}
+        REPO_URL: ${{ inputs.repo_url }}
+        KUSTOMIZATION_PATH: ${{ inputs.kustomization_path }}
+        DEPLOYMENT_MODE: ${{ inputs.deployment_mode }}
+        APPLICATION_MANIFEST_PATH: ${{ inputs.application_manifest_path }}
+        CLUSTER_URL: ${{ inputs.cluster_url }}
+        NAMESPACE: ${{ inputs.namespace }}
+        REPO_TAG: ${{ inputs.repo_tag }}
+        APP_PROJECT: ${{ env.APP_PROJECT != '' && env.APP_PROJECT || inputs.app_project }}
+      run: $GITHUB_ACTION_PATH/../../../scripts/argocd_deploy.sh
