@@ -23,6 +23,16 @@
   - `safe` or `replace-force`
   - `safe`: sync without `--force --replace`
   - `replace-force`: keeps the legacy destructive sync flags for exceptional cases only
+- `gitops_repo_url` (string)
+  - Git repository URL for the environment repo that owns the Argo CD `Application`
+- `gitops_repo_branch` (string)
+  - Branch to update in the GitOps repo
+  - If omitted, defaults to the environment name (`production`, `develop`, etc.)
+- `gitops_application_manifest` (string)
+  - Explicit path to the `Application` manifest inside the GitOps repo
+- `gitops_application_name` (string)
+  - Explicit `Application.metadata.name` to promote
+  - If omitted, defaults to `<app_name>-<environment>`
 - `argocd_application_manifest` (string)
   - Path to an Argo CD Application manifest file (used when `argocd_deployment_mode=application`)
 - `release_policy` (string)
@@ -46,7 +56,8 @@
 - `ARGOCD_SERVER`, `ARGOCD_TOKEN`
   - Argo CD API access (required for `gitops_app: argocd`)
 - `GITOPS_SSH_PRIVATE_KEY`
-  - SSH key used by Argo CD/Flux to read the Git repository (recommended for private repos)
+  - SSH key used by Argo CD/Flux to read the Git repository
+  - In `argocd_delivery_mode: declarative`, the same key can also be used by the workflow to update the GitOps environment repo over SSH
 - `CLUSTER_PROD`
 - `CLUSTER_DEVELOP`
   - Cluster API endpoint for `develop`

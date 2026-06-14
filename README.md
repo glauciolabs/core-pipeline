@@ -16,8 +16,9 @@ Workflow reutilizavel de GitHub Actions para build, tagging e entrega GitOps.
 Modo recomendado.
 
 - o workflow publica artefatos e tags
-- nao altera `Application` ou `AppProject` via CLI
-- a promocao acontece no repositorio GitOps de ambiente
+- nao altera `Application` ou `AppProject` no cluster via CLI
+- quando `gitops_repo_url` e informado, a promocao acontece por commit no repositorio GitOps de ambiente
+- quando `gitops_repo_url` nao e informado, a pipeline apenas valida e deixa a promocao para outro fluxo Git
 
 ### `argocd_delivery_mode: self-service`
 

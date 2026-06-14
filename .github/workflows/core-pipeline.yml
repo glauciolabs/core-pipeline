@@ -39,6 +39,18 @@ on:
         type: choice
         options: [safe, replace-force]
         default: safe
+      gitops_repo_url:
+        type: string
+        default: ""
+      gitops_repo_branch:
+        type: string
+        default: ""
+      gitops_application_manifest:
+        type: string
+        default: ""
+      gitops_application_name:
+        type: string
+        default: ""
       argocd_application_manifest:
         type: string
         default: ""
@@ -61,6 +73,10 @@ on:
       argocd_delivery_mode: { type: string, default: self-service }
       argocd_deployment_mode: { type: string, default: kustomize }
       argocd_sync_strategy: { type: string, default: safe }
+      gitops_repo_url: { type: string, default: "" }
+      gitops_repo_branch: { type: string, default: "" }
+      gitops_application_manifest: { type: string, default: "" }
+      gitops_application_name: { type: string, default: "" }
       argocd_application_manifest: { type: string, default: "" }
       release_policy: { type: string, default: auto }
       release_notes_file: { type: string, default: "" }
@@ -319,4 +335,8 @@ jobs:
           delivery_mode: ${{ inputs.argocd_delivery_mode }}
           deployment_mode: ${{ inputs.argocd_deployment_mode }}
           sync_strategy: ${{ inputs.argocd_sync_strategy }}
+          gitops_repo_url: ${{ inputs.gitops_repo_url }}
+          gitops_repo_branch: ${{ inputs.gitops_repo_branch }}
+          gitops_application_manifest_path: ${{ inputs.gitops_application_manifest }}
+          gitops_application_name: ${{ inputs.gitops_application_name }}
           application_manifest_path: ${{ inputs.argocd_application_manifest }}

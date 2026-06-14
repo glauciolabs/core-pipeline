@@ -44,6 +44,9 @@ jobs:
       argocd_delivery_mode: declarative
       argocd_deployment_mode: kustomize
       argocd_sync_strategy: safe
+      gitops_repo_url: git@ssh.dev.azure.com:v3/glauciocampos/devops/argocd-configs
+      gitops_repo_branch: production
+      gitops_application_manifest: path/to/htmly-application.yaml
       argocd_application_manifest: ""
       release_policy: always
       release_notes_file: RELEASE_NOTES.md
@@ -73,6 +76,11 @@ For custom registries, password fallback order is:
   - use `argocd_delivery_mode: declarative`
   - keep `Application` and `AppProject` in the environment repo
   - reserve `self-service` for bootstrap or controlled exceptions
+- When `gitops_repo_url` is provided in declarative mode:
+  - the workflow clones the environment repo
+  - locates the Argo CD `Application`
+  - updates `spec.source.targetRevision`
+  - commits and pushes the promotion by Git
 - Security checks are controlled by `snyk_job.yaml` in the caller repository.
 - Security runs as a dedicated gate job after build and before tag/deploy.
 - For GHCR, images are built with OCI labels that help associate packages to the source repository.
