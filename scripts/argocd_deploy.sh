@@ -4,10 +4,51 @@ set -euo pipefail
 app_full="${APP_NAME}-${ENVIRONMENT}"
 project="${APP_PROJECT:-${APP_NAME}}"
 cluster_url="${CLUSTER_URL:-}"
+delivery_mode="${DELIVERY_MODE:-self-service}"
+sync_strategy="${SYNC_STRATEGY:-safe}"
 
 if [[ -z "${cluster_url}" ]]; then
   cluster_url="https://kubernetes.default.svc"
   echo "[WARN] CLUSTER_URL is empty. Falling back to ${cluster_url}"
+fi
+
+if [[ "${delivery_mode}" != "self-service" && "${delivery_mode}" != "declarative" ]]; then
+  echo "[ERROR] Unsupported DELIVERY_MODE: ${delivery_mode}"
+  exit 1
+fi
+
+if [[ "${sync_strategy}" != "safe" && "${sync_strategy}" != "replace-force" ]]; then
+  echo "[ERROR] Unsupported SYNC_STRATEGY: ${sync_strategy}"
+  exit 1
+fi
+
+if [[ "${delivery_mode}" == "declarative" ]]; then
+  echo "[INFO] DELIVERY_MODE=declarative"
+  echo "[INFO] No imperative Argo CD mutation will be executed."
+  echo "[INFO] Publish/tag completed. Promotion must happen in the GitOps environment repository."
+
+  if argocd app get "${app_full}" \
+    --grpc-web \
+    --insecure \
+    --server "${ARGOCD_SERVER}" \
+    --auth-token "${ARGOCD_TOKEN}" \
+    -o json >/tmp/argocd-app.json 2>/tmp/argocd-app.err; then
+    current_revision="$(jq -r '.spec.source.targetRevision // ""' /tmp/argocd-app.json)"
+    sync_status="$(jq -r '.status.sync.status // ""' /tmp/argocd-app.json)"
+    health_status="$(jq -r '.status.health.status // ""' /tmp/argocd-app.json)"
+    echo "[INFO] Existing app: ${app_full}"
+    echo "[INFO] Current targetRevision: ${current_revision}"
+    echo "[INFO] Current status: sync=${sync_status} health=${health_status}"
+    if [[ "${current_revision}" != "${REPO_TAG}" ]]; then
+      echo "[INFO] Desired revision ${REPO_TAG} is not active yet. Update the GitOps repo to promote it."
+    fi
+  else
+    echo "[WARN] App ${app_full} was not found in Argo CD."
+    echo "[WARN] In declarative mode, bootstrap must happen from the GitOps repo or a dedicated bootstrap workflow."
+    cat /tmp/argocd-app.err || true
+  fi
+
+  exit 0
 fi
 
 if [[ "${DEPLOYMENT_MODE}" == "application" ]]; then
@@ -97,21 +138,26 @@ if [[ "${DEPLOYMENT_MODE}" != "application" ]]; then
 fi
 
 echo "Syncing app ${app_full}"
+sync_args=(
+  --grpc-web
+  --insecure
+  --server "${ARGOCD_SERVER}"
+  --auth-token "${ARGOCD_TOKEN}"
+  --project "${project}"
+  --prune
+  --timeout 200
+)
+
+if [[ "${sync_strategy}" == "replace-force" ]]; then
+  sync_args+=(--force --replace)
+fi
+
 attempt=1
 max_attempts=5
 sync_ok=false
 while [[ ${attempt} -le ${max_attempts} ]]; do
   set +e
-  argocd app sync "${app_full}" \
-    --grpc-web \
-    --insecure \
-    --server "${ARGOCD_SERVER}" \
-    --auth-token "${ARGOCD_TOKEN}" \
-    --project "${project}" \
-    --prune \
-    --force \
-    --replace \
-    --timeout 200
+  argocd app sync "${app_full}" "${sync_args[@]}"
   status=$?
   set -e
   if [[ $status -eq 0 ]]; then

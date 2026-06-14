@@ -41,7 +41,9 @@ jobs:
       kustomization_overlay: false
       helm_chart: false
       gitops_app: argocd
+      argocd_delivery_mode: declarative
       argocd_deployment_mode: kustomize
+      argocd_sync_strategy: safe
       argocd_application_manifest: ""
       release_policy: always
       release_notes_file: RELEASE_NOTES.md
@@ -67,6 +69,10 @@ For custom registries, password fallback order is:
 ## Notes
 - The workflow tags commits as `<version>-<short_sha>-<environment>`.
 - `master` maps to `production`; any other branch maps to `develop`.
+- Recommended GitOps path:
+  - use `argocd_delivery_mode: declarative`
+  - keep `Application` and `AppProject` in the environment repo
+  - reserve `self-service` for bootstrap or controlled exceptions
 - Security checks are controlled by `snyk_job.yaml` in the caller repository.
 - Security runs as a dedicated gate job after build and before tag/deploy.
 - For GHCR, images are built with OCI labels that help associate packages to the source repository.

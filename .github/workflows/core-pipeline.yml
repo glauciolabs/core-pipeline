@@ -27,10 +27,18 @@ on:
         type: choice
         options: [argocd]
         default: argocd
+      argocd_delivery_mode:
+        type: choice
+        options: [self-service, declarative]
+        default: self-service
       argocd_deployment_mode:
         type: choice
         options: [kustomize, application]
         default: kustomize
+      argocd_sync_strategy:
+        type: choice
+        options: [safe, replace-force]
+        default: safe
       argocd_application_manifest:
         type: string
         default: ""
@@ -50,7 +58,9 @@ on:
       kustomization_overlay: { type: boolean, default: false }
       archetype: { type: string, required: true }
       gitops_app: { type: string, default: argocd }
+      argocd_delivery_mode: { type: string, default: self-service }
       argocd_deployment_mode: { type: string, default: kustomize }
+      argocd_sync_strategy: { type: string, default: safe }
       argocd_application_manifest: { type: string, default: "" }
       release_policy: { type: string, default: auto }
       release_notes_file: { type: string, default: "" }
@@ -306,5 +316,7 @@ jobs:
           kustomization_path: ${{ needs.extract-info.outputs.kustomization_path }}
           namespace: ${{ needs.extract-info.outputs.namespace }}
           repo_tag: ${{ needs.extract-info.outputs.repo_tag }}
+          delivery_mode: ${{ inputs.argocd_delivery_mode }}
           deployment_mode: ${{ inputs.argocd_deployment_mode }}
+          sync_strategy: ${{ inputs.argocd_sync_strategy }}
           application_manifest_path: ${{ inputs.argocd_application_manifest }}

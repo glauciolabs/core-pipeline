@@ -44,10 +44,18 @@ inputs:
   kustomization_path:
     description: "Kustomization path"
     required: true
+  delivery_mode:
+    description: "Delivery mode: self-service mutates Argo CD; declarative only validates and leaves promotion to the GitOps repo"
+    required: false
+    default: "self-service"
   deployment_mode:
     description: "Deployment mode: kustomize or application"
     required: false
     default: "kustomize"
+  sync_strategy:
+    description: "Sync strategy: safe omits --force/--replace; replace-force keeps the legacy destructive flags"
+    required: false
+    default: "safe"
   application_manifest_path:
     description: "Path to Argo CD Application manifest (YAML)"
     required: false
@@ -100,7 +108,9 @@ runs:
         ENVIRONMENT: ${{ inputs.environment }}
         REPO_URL: ${{ inputs.repo_url }}
         KUSTOMIZATION_PATH: ${{ inputs.kustomization_path }}
+        DELIVERY_MODE: ${{ inputs.delivery_mode }}
         DEPLOYMENT_MODE: ${{ inputs.deployment_mode }}
+        SYNC_STRATEGY: ${{ inputs.sync_strategy }}
         APPLICATION_MANIFEST_PATH: ${{ inputs.application_manifest_path }}
         CLUSTER_URL: ${{ inputs.cluster_url }}
         NAMESPACE: ${{ inputs.namespace }}

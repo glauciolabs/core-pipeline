@@ -13,8 +13,16 @@
   - Reserved for future use
 - `gitops_app` (string)
   - `argocd`
+- `argocd_delivery_mode` (string)
+  - `self-service` or `declarative`
+  - `self-service`: the workflow still reconciles Argo CD resources via CLI
+  - `declarative`: the workflow only publishes/tags the workload and validates the existing app; promotion must happen in the GitOps repo
 - `argocd_deployment_mode` (string)
   - `kustomize` or `application`
+- `argocd_sync_strategy` (string)
+  - `safe` or `replace-force`
+  - `safe`: sync without `--force --replace`
+  - `replace-force`: keeps the legacy destructive sync flags for exceptional cases only
 - `argocd_application_manifest` (string)
   - Path to an Argo CD Application manifest file (used when `argocd_deployment_mode=application`)
 - `release_policy` (string)

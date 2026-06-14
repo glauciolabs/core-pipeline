@@ -12,5 +12,7 @@ case "$arch_raw" in
   *) arch="$arch_raw" ;;
 esac
 
-sudo curl -L -o /usr/local/bin/argocd "https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-${arch}"
+argocd_version="${ARGOCD_CLI_VERSION:-v3.4.3}"
+
+sudo curl -L -o /usr/local/bin/argocd "https://github.com/argoproj/argo-cd/releases/download/${argocd_version}/argocd-linux-${arch}"
 sudo chmod +x /usr/local/bin/argocd

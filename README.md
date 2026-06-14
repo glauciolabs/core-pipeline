@@ -1,20 +1,40 @@
-# Introduction 
-TODO: Give a short introduction of your project. Let this section explain the objectives or the motivation behind this project. 
+# core-pipeline
 
-# Getting Started
-TODO: Guide users through getting your code up and running on their own system. In this section you can talk about:
-1.	Installation process
-2.	Software dependencies
-3.	Latest releases
-4.	API references
+Workflow reutilizavel de GitHub Actions para build, tagging e entrega GitOps.
 
-# Build and Test
-TODO: Describe and show how to build your code and run the tests. 
+## O que este repositorio entrega
 
-# Contribute
-TODO: Explain how other users and developers can contribute to make your code better. 
+- build de containers
+- tagging no formato `<versao>-<sha-curto>-<environment>`
+- scans de seguranca com Snyk
+- integracao com Argo CD
 
-If you want to learn more about creating good readme files then refer the following [guidelines](https://docs.microsoft.com/en-us/azure/devops/repos/git/create-a-readme?view=azure-devops). You can also seek inspiration from the below readme files:
-- [ASP.NET Core](https://github.com/aspnet/Home)
-- [Visual Studio Code](https://github.com/Microsoft/vscode)
-- [Chakra Core](https://github.com/Microsoft/ChakraCore)
+## Modos de entrega com Argo CD
+
+### `argocd_delivery_mode: declarative`
+
+Modo recomendado.
+
+- o workflow publica artefatos e tags
+- nao altera `Application` ou `AppProject` via CLI
+- a promocao acontece no repositorio GitOps de ambiente
+
+### `argocd_delivery_mode: self-service`
+
+Modo de compatibilidade e bootstrap.
+
+- ainda usa CLI do Argo CD para reconciliar app/projeto
+- deve ser tratado como excecao operacional
+
+## Guardrails atuais
+
+- a CLI do Argo CD fica fixada em uma versao conhecida por padrao
+- o sync padrao usa `argocd_sync_strategy: safe`
+- `replace-force` fica disponivel apenas para excecoes controladas
+- tags existentes nao sao recriadas
+
+## Referencias
+
+- [pipelines.md](/home/gcampos/git/core-pipeline/docs/pipelines.md)
+- [pipeline-variables.md](/home/gcampos/git/core-pipeline/docs/pipeline-variables.md)
+- [GITOPS-ARGOCD-STRATEGY.md](/home/gcampos/git/docs/GITOPS-ARGOCD-STRATEGY.md)
