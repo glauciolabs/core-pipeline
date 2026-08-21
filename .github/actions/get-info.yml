@@ -1,0 +1,32 @@
+name: "extract build info"
+description: "Read info.yaml and compute build metadata"
+outputs:
+  org_name: ${{ steps.info.outputs.org_name }}
+  app_name: ${{ steps.info.outputs.app_name }}
+  repo_tag: ${{ steps.info.outputs.repo_tag }}
+  app_project: ${{ steps.info.outputs.app_project }}
+  environment: ${{ steps.info.outputs.environment }}
+  repo_url: ${{ steps.info.outputs.repo_url }}
+  argocd_project_namespace: ${{ steps.info.outputs.argocd_project_namespace }}
+  namespace: ${{ steps.info.outputs.namespace }}
+  tag_exists: ${{ steps.info.outputs.tag_exists }}
+  kustomization_path: ${{ steps.info.outputs.kustomization_path }}
+  resource_group: ${{ steps.info.outputs.resource_group }}
+  cluster_name: ${{ steps.info.outputs.cluster_name }}
+  commit_id: ${{ steps.info.outputs.commit_id }}
+  last_tag_prefix: ${{ steps.info.outputs.last_tag_prefix }}
+  last_tag: ${{ steps.info.outputs.last_tag }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Extract info
+      id: extract
+      shell: bash 
+      env:
+        NAMESPACE_OVERRIDE: ${{ inputs.namespace_override }}
+        KUSTOMIZATION_OVERLAY: ${{ inputs.kustomization_overlay }}
+        CLUSTER_DEVELOP: ${{ inputs.cluster_develop }}
+        CLUSTER_PRODUCTION: ${{ inputs.cluster_production }}
+        CLUSTER_PROD: ${{ inputs.cluster_prod }}
+      run: $GITHUB_ACTION_PATH/../../../scripts/get-info.sh

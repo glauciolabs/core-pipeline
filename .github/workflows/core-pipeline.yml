@@ -1,102 +1,59 @@
 name: Core Pipeline
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 on:
   workflow_dispatch:
     inputs:
-      allowed_branches_regex:
-        type: string
-        default: "^(develop|master)$"
+      workflow_type:
+        type: choice
+        options: [container, app]
+        default: containers
       pipeline_mode:
         type: choice
-        options: [build_and_push, build_only, deploy_only]
+        options: [build_and_deploy, build_only, deploy_only, security_test]
         default: build_and_push
-      namespace_override:
-        type: boolean
-        default: false
-      kustomization_overlay:
-        type: boolean
-        default: false
-      archetype:
+      gitops_engine:
         type: choice
-        options: [containers, k8s-apps]
-        default: containers
-      gitops_app:
-        type: choice
-        options: [argocd]
+        options: [argocd, fluxcd]
         default: argocd
-      argocd_delivery_mode:
+      deploy:
+        required: true
+        type: boolean
+        default: false
+      container_registry:
+        description: container registry
         type: choice
-        options: [self-service, declarative]
-        default: self-service
+        required: false
+        default: github
+        options: [dockerhub, github ]
       argocd_deployment_mode:
         type: choice
-        options: [kustomize, application]
-        default: kustomize
-      argocd_sync_strategy:
+        required: false
+        options: [kustomization, application]
+      kustomization_overlay:
+        type: boolean
+        required: false
+      security_test_options:
         type: choice
-        options: [safe, replace-force]
-        default: safe
-      gitops_repo_url:
-        type: string
-        default: ""
-      gitops_repo_branch:
-        type: string
-        default: ""
-      gitops_application_manifest:
-        type: string
-        default: ""
-      gitops_application_name:
-        type: string
-        default: ""
-      argocd_application_manifest:
-        type: string
-        default: ""
-      release_policy:
-        type: choice
-        options: [auto, always, never]
-        default: auto
-      release_notes_file:
-        type: string
-        default: ""
+        options: [trivy, snyk, both]
+        default: both
 
   workflow_call:
     inputs:
-      allowed_branches_regex: { type: string, default: "^(develop|master)$" }
       pipeline_mode: { type: string, default: build_and_push }
-      namespace_override: { type: boolean, default: false }
-      kustomization_overlay: { type: boolean, default: false }
-      archetype: { type: string, required: true }
       gitops_app: { type: string, default: argocd }
-      argocd_delivery_mode: { type: string, default: self-service }
       argocd_deployment_mode: { type: string, default: kustomize }
-      argocd_sync_strategy: { type: string, default: safe }
-      gitops_repo_url: { type: string, default: "" }
-      gitops_repo_branch: { type: string, default: "" }
-      gitops_application_manifest: { type: string, default: "" }
-      gitops_application_name: { type: string, default: "" }
       argocd_application_manifest: { type: string, default: "" }
-      release_policy: { type: string, default: auto }
-      release_notes_file: { type: string, default: "" }
     secrets:
       DOCKERHUB_USERNAME: { required: false }
       DOCKERHUB_TOKEN: { required: false }
       REGISTRY: { required: false }
       REGISTRY_USERNAME: { required: false }
       REGISTRY_PASSWORD: { required: false }
-      GIT_REGISTRY_TOKEN: { required: false }
-      SNYK_TOKEN: { required: false }
       ARGOCD_SERVER: { required: false }
       ARGOCD_TOKEN: { required: false }
       GITOPS_SSH_PRIVATE_KEY: { required: false }
       CLUSTER_DEVELOP: { required: false }
       CLUSTER_PRODUCTION: { required: false }
-
-permissions:
-  contents: write
-  packages: write
 
 concurrency:
   group: core-pipeline-${{ github.workflow }}-${{ github.ref }}
@@ -107,236 +64,103 @@ defaults:
     shell: bash
 
 jobs:
-  branch-guard:
-    name: Branch Guard
+  get-info:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
-      allowed: ${{ steps.guard.outputs.allowed }}
-    steps:
-      - name: Check allowed branches
-        id: guard
-        run: |
-          set -euo pipefail
-          branch="${GITHUB_REF_NAME:-}"
-          allowed_regex='${{ inputs.allowed_branches_regex }}'
-          if [[ -z "${allowed_regex}" ]]; then
-            allowed_regex='^(develop|master)$'
-          fi
-
-          if [[ "${branch}" =~ ${allowed_regex} ]]; then
-            echo "allowed=true" >> "$GITHUB_OUTPUT"
-            echo "[INFO] Branch '${branch}' allowed by regex '${allowed_regex}'."
-          else
-            echo "allowed=false" >> "$GITHUB_OUTPUT"
-            echo "[WARN] Branch '${branch}' not allowed by regex '${allowed_regex}'. Skipping pipeline jobs."
-          fi
-
-  extract-info:
-    name: Extract Info
-    runs-on: ubuntu-latest
-    needs: branch-guard
-    if: ${{ needs.branch-guard.outputs.allowed == 'true' }}
-    outputs:
+      org_name: ${{ steps.info.outputs.org_name }}
+      app_name: ${{ steps.info.outputs.app_name }}
       repo_tag: ${{ steps.info.outputs.repo_tag }}
-      tag_exists: ${{ steps.info.outputs.tag_exists }}
+      app_project: ${{ steps.info.outputs.app_project }}
       environment: ${{ steps.info.outputs.environment }}
       repo_url: ${{ steps.info.outputs.repo_url }}
-      app_name: ${{ steps.info.outputs.app_name }}
-      app_project: ${{ steps.info.outputs.app_project }}
       argocd_project_namespace: ${{ steps.info.outputs.argocd_project_namespace }}
-      kustomization_path: ${{ steps.info.outputs.kustomization_path }}
       namespace: ${{ steps.info.outputs.namespace }}
+      tag_exists: ${{ steps.info.outputs.tag_exists }}
+      kustomization_path: ${{ steps.info.outputs.kustomization_path }}
+      resource_group: ${{ steps.info.outputs.resource_group }}
+      cluster_name: ${{ steps.info.outputs.cluster_name }}
+      commit_id: ${{ steps.info.outputs.commit_id }}
+      last_tag_prefix: ${{ steps.info.outputs.last_tag_prefix }}
+      last_tag: ${{ steps.info.outputs.last_tag }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
 
-      - name: Extract build info
+      - name: get info
         id: info
-        uses: glauciolabs/core-pipeline/.github/actions/extract-info@add2
+        uses: ./.github/actions/get-info.yml
         with:
-          namespace_override: ${{ inputs.namespace_override }}
-          kustomization_overlay: ${{ inputs.kustomization_overlay }}
+          namespace_override: ${{ inputs.namespace_override || false }}
+          kustomization_overlay: ${{ inputs.kustomization_overlay || false }}
           cluster_develop: ${{ secrets.CLUSTER_DEVELOP }}
           cluster_production: ${{ secrets.CLUSTER_PRODUCTION }}
 
-  build-containers:
-    name: Build Containers
+  ci:
+    needs: get-info
     runs-on: ubuntu-latest
-    needs: [branch-guard, extract-info]
-    outputs:
-      built_any: ${{ steps.build.outputs.built_any }}
-      noop_existing: ${{ steps.build.outputs.noop_existing }}
-    if: >-
-      ${{
-        needs.branch-guard.outputs.allowed == 'true'
-        && inputs.pipeline_mode != 'deploy_only'
-        && inputs.archetype == 'containers'
-        && needs.extract-info.outputs.tag_exists != 'true'
-      }}
-    timeout-minutes: 60
+    timeout-minutes: 360
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
 
-      - name: Build containers
-        id: build
-        uses: glauciolabs/core-pipeline/.github/actions/build-containers@add2
+      - name: snyk tests
+        if: ${{ inputs.security_test_options == 'snyk' || inputs.security_test_options == 'both' }}
+        id: snyk-tests
+        uses: ./.github/actions/snyk.yml
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          dockerfile_path: ${{ inputs.dockerfile_path || 'Dockerfile' }}
+          docker_options: ${{ inputs.docker_options }}
+
+      - name: trivy tests
+        if: ${{ inputs.security_test_options == 'trivy' || inputs.security_test_options == 'both' }}
+        id: trivy-tests
+        uses: ./.github/actions/trivy.yml
+
+      - name: git tag
+        if: ${{ inputs.pipeline_mode != 'deploy_only' || inputs.security_test_options != '' }}
+        uses: ./.github/actions/git-tag.yml
+        with:
+          repo_tag: ${{ needs.get-info.outputs.repo_tag }}
+          tag_exists: ${{ needs.get-info.outputs.tag_exists }}
+
+      - name: build application
+        if: ${{ inputs.pipeline_mode != 'deploy_only' && inputs.workflow_type == 'containers' }}
+        uses: ./.github/actions/build-containers.yml
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
           REGISTRY: ${{ secrets.REGISTRY }}
-          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME != '' && secrets.REGISTRY_USERNAME || github.actor }}
-          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD || secrets.GIT_REGISTRY_TOKEN || github.token }}
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
         with:
           docker_options: ${{ inputs.pipeline_mode }}
 
-  security:
-    name: Security
-    runs-on: ubuntu-latest
-    needs: [branch-guard, extract-info, build-containers]
-    env:
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-      REGISTRY: ${{ secrets.REGISTRY }}
-      REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME != '' && secrets.REGISTRY_USERNAME || github.actor }}
-      REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD != '' && secrets.REGISTRY_PASSWORD || secrets.GIT_REGISTRY_TOKEN || github.token }}
-    if: >-
-      ${{
-        needs.branch-guard.outputs.allowed == 'true'
-        && inputs.pipeline_mode != 'deploy_only'
-        && needs.extract-info.outputs.tag_exists != 'true'
-        && needs.build-containers.outputs.noop_existing != 'true'
-        && (needs.build-containers.result == 'success' || needs.build-containers.result == 'skipped')
-      }}
+  cd:
+    needs: [get-info, ci]
+    runs-on: self-hosted
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
-      - name: Log in to Docker Hub
-        if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != '' }}
-        uses: docker/login-action@v3
-        env:
-          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-        with:
-          username: ${{ env.DOCKERHUB_USERNAME }}
-          password: ${{ env.DOCKERHUB_TOKEN }}
-      - name: Log in to Custom Registry
-        if: ${{ env.REGISTRY != '' }}
-        uses: docker/login-action@v3
-        env:
-          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ env.REGISTRY_USERNAME }}
-          password: ${{ env.REGISTRY_PASSWORD }}
-      - name: Snyk checks
-        uses: glauciolabs/core-pipeline/.github/actions/security-snyk@add2
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          pipeline_mode: ${{ inputs.pipeline_mode }}
-      - name: Detect Snyk reports
-        id: snyk_reports
-        if: ${{ always() }}
-        shell: bash
-        run: |
-          if ls reports/snyk/* >/dev/null 2>&1; then
-            echo "found=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "found=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Publish Snyk summary
-        if: ${{ always() && steps.snyk_reports.outputs.found == 'true' }}
-        shell: bash
-        run: |
-          {
-            echo "## Snyk Reports"
-            echo ""
-            if [[ -f reports/snyk/snyk-exit-summary.txt ]]; then
-              echo '```txt'
-              cat reports/snyk/snyk-exit-summary.txt
-              echo '```'
-            else
-              echo "No exit summary file found."
-            fi
-            echo ""
-            echo "Files generated:"
-            ls -1 reports/snyk | sed 's/^/- /'
-          } >> "$GITHUB_STEP_SUMMARY"
-      - name: Upload Snyk reports
-        if: ${{ always() && steps.snyk_reports.outputs.found == 'true' }}
-        uses: actions/upload-artifact@v6
-        env:
-          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-        with:
-          name: snyk-reports
-          path: reports/snyk
 
-  tag:
-    name: Git Tag
-    runs-on: ubuntu-latest
-    needs: [branch-guard, extract-info, build-containers, security]
-    if: >-
-      ${{
-        always()
-        && needs.branch-guard.outputs.allowed == 'true'
-        && inputs.pipeline_mode != 'build_only'
-        && needs.extract-info.result == 'success'
-        && (needs.build-containers.result == 'success' || needs.build-containers.result == 'skipped')
-        && (needs.security.result == 'success' || needs.security.result == 'skipped')
-      }}
-    steps:
-      - uses: actions/checkout@v5
-        with: { fetch-depth: 0 }
-      - name: Tag repository
-        uses: glauciolabs/core-pipeline/.github/actions/git-tag@add2
-        with:
-          repo_tag: ${{ needs.extract-info.outputs.repo_tag }}
-          tag_exists: ${{ needs.extract-info.outputs.tag_exists }}
-          environment: ${{ needs.extract-info.outputs.environment }}
-          create_release: ${{ inputs.release_policy == 'always' || (inputs.release_policy == 'auto' && needs.extract-info.outputs.environment == 'production') }}
-          prerelease: ${{ needs.extract-info.outputs.environment != 'production' }}
-          release_notes_file: ${{ inputs.release_notes_file }}
-
-  deploy-argocd:
-    name: Deploy via Argo CD
-    runs-on: ubuntu-latest
-    needs: [branch-guard, extract-info, tag, security]
-    if: >-
-      ${{
-        always()
-        && needs.branch-guard.outputs.allowed == 'true'
-        && inputs.pipeline_mode != 'build_only'
-        && inputs.gitops_app == 'argocd'
-        && needs.extract-info.result == 'success'
-        && (needs.tag.result == 'success' || needs.tag.result == 'skipped')
-        && (needs.security.result == 'success' || needs.security.result == 'skipped')
-      }}
-    steps:
-      - uses: actions/checkout@v5
-        with: { fetch-depth: 0 }
-      - name: Deploy with Argo CD
-        uses: glauciolabs/core-pipeline/.github/actions/deploy-argocd@add2
+      - name: deploy with ${{ inputs.gitops_engine }}
+        if: ${{ inputs.pipeline_mode != 'build_only' || inputs.deploy == 'true' }}
+        uses: ./.github/actions/deploy.yml
         with:
           argocd_server: ${{ secrets.ARGOCD_SERVER }}
           argocd_token: ${{ secrets.ARGOCD_TOKEN }}
           gitops_ssh_private_key: ${{ secrets.GITOPS_SSH_PRIVATE_KEY }}
-          repo_url: ${{ needs.extract-info.outputs.repo_url }}
-          app_name: ${{ needs.extract-info.outputs.app_name }}
-          app_project: ${{ needs.extract-info.outputs.app_project }}
-          cluster_url: ${{ needs.extract-info.outputs.environment == 'production' && secrets.CLUSTER_PRODUCTION || secrets.CLUSTER_DEVELOP }}
-          argocd_project_namespace: ${{ needs.extract-info.outputs.argocd_project_namespace }}
-          namespace_override: ${{ inputs.namespace_override }}
-          cluster_develop: ${{ secrets.CLUSTER_DEVELOP }}
-          cluster_production: ${{ secrets.CLUSTER_PRODUCTION }}
-          environment: ${{ needs.extract-info.outputs.environment }}
-          kustomization_path: ${{ needs.extract-info.outputs.kustomization_path }}
-          namespace: ${{ needs.extract-info.outputs.namespace }}
-          repo_tag: ${{ needs.extract-info.outputs.repo_tag }}
-          delivery_mode: ${{ inputs.argocd_delivery_mode }}
+          repo_url: ${{ needs.get-info.outputs.repo_url }}
+          app_name: ${{ needs.get-info.outputs.app_name }}
+          app_project: ${{ needs.get-info.outputs.app_project }}
+          cluster_url: ${{ needs.get-info.outputs.cluster_url }}
+          argocd_project_namespace: ${{ needs.get-info.outputs.argocd_project_namespace }}
+          environment: ${{ needs.get-info.outputs.environment }}
+          kustomization_path: ${{ needs.get-info.outputs.kustomization_path }}
+          namespace: ${{ needs.get-info.outputs.namespace }}
+          repo_tag: ${{ needs.get-info.outputs.repo_tag }}
           deployment_mode: ${{ inputs.argocd_deployment_mode }}
-          sync_strategy: ${{ inputs.argocd_sync_strategy }}
-          gitops_repo_url: ${{ inputs.gitops_repo_url }}
-          gitops_repo_branch: ${{ inputs.gitops_repo_branch }}
-          gitops_application_manifest_path: ${{ inputs.gitops_application_manifest }}
-          gitops_application_name: ${{ inputs.gitops_application_name }}
           application_manifest_path: ${{ inputs.argocd_application_manifest }}

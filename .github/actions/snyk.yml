@@ -1,0 +1,80 @@
+name: "snyk tests"
+description: "run snyk security tests"
+inputs:
+  snyk_debug:
+    required: false
+    default: false
+    type: boolean
+  snyk_test:
+    type: choice
+    required: true
+    options: [container, open-source, iac, code]
+    default: code
+  snyk_dockerfile_path:
+    required: false
+    default: Dockerfile
+    type: string
+  snyk_multi_dockerfile:
+    required: false
+    default: false
+    type: boolean
+  snyk_contaienr_options:
+    required: false
+    default: ""
+    type: string
+  snyk_severity_threshold:
+    required: true
+    default: high
+    type: choice
+    options: [low, medium, high, critical]
+  snyk_additional_args:
+    required: false
+    default: ""
+    type: string
+  snyk_fail_on_issues:
+    required: false
+    default: true
+    type: boolean
+  snyk_enablemonitor:
+    required: false
+    default: true
+    type: boolean
+  snyk_enable_report:
+    required: false
+    default: true
+    type: boolean
+  snyk_reports_dir:
+    required: false
+    default: "reports/snyk"
+    type: string
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@v7
+
+    - name: run snyk ${{ inputs.snyk_test }}
+      shell: bash
+      env:
+        GIT_ORGANIZATION_NAME: ${{}}
+        GIT_BRANCH_REF: ${{ GITHUB_REF_NAME }}
+        GIT_REPOSITORY_ID: ${{ GITHUB_REPOSITORY_ID }}
+        GIT_REPOSITORY_NAME: ${{ GITHUB_REPOSITORY }}
+        SNYK_DEBUG: ${{ inputs.snyk_debug }}
+        SNYK_DOCKERFILE_PATH: ${{ inputs.snyk_dockerfile_path }}
+        SNYK_MULTI_DOCKERFILE: ${{ inputs.snyk_multi_dockerfile }}
+        SNYK_DOCKER_OPTIONS: ${{ inputs.snyk_contaienr_options }}
+        SNYK_SEVERITY_THRESHOLD: ${{ inputs.snyk_severity_threshold }}
+        SNYK_ADDITIONAL_ARGS: ${{ inputs.snyk_additional_args }}
+        SNYK_FAIL_ON_ISSUES: ${{ inputs.snyk_fail_on_issues }}
+        SNYK_ENABLE_MONITOR: ${{ inputs.snyk_enablemonitor }}
+        SNYK_ENABLE_REPORT: ${{ inputs.snyk_enable_report }}
+        SNYK_REPORTS_DIR: ${{ inputs.snyk_reports_dir }}
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        SNYK_TEST_NAME: ${{ inputs.snyk_test }}
+      run: $GITHUB_ACTION_PATH/../../../scripts/snyk/snyk-test.sh
+
+    - name: Upload result to GitHub Code Scanning
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: ${{ inputs.snyk_reports_dir }}/snyk.sarif
