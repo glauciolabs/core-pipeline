@@ -90,6 +90,8 @@ runs:
         platforms: ${{ inputs.platforms }}
         push: ${{ inputs.push == 'true' }}
         load: ${{ inputs.load == 'true' }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
         tags: |
           ${{ steps.meta.outputs.image_name }}:${{ inputs.repo_tag }}
           ${{ steps.meta.outputs.image_name }}:latest
