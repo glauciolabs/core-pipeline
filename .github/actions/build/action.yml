@@ -17,6 +17,10 @@ inputs:
   repo_tag:
     description: "Tag to push"
     required: true
+  platforms:
+    description: "Target platforms for the build"
+    required: false
+    default: "linux/amd64"
   dockerhub_username:
     description: "DockerHub Username"
     required: false
@@ -83,6 +87,7 @@ runs:
       with:
         context: ${{ inputs.docker_context }}
         file: ${{ inputs.dockerfile }}
+        platforms: ${{ inputs.platforms }}
         push: ${{ inputs.push == 'true' }}
         load: ${{ inputs.load == 'true' }}
         tags: |
