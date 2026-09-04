@@ -1,6 +1,9 @@
 name: "snyk tests"
 description: "run snyk security tests"
 inputs:
+  snyk_token:
+    description: "Snyk token"
+    required: true
   snyk_debug:
     description: "Snyk debug mode"
     required: false
@@ -67,7 +70,7 @@ runs:
         SNYK_ENABLE_MONITOR: ${{ inputs.snyk_enablemonitor }}
         SNYK_ENABLE_REPORT: ${{ inputs.snyk_enable_report }}
         SNYK_REPORTS_DIR: ${{ inputs.snyk_reports_dir }}
-        SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
+        SNYK_TOKEN: ${{ inputs.snyk_token }}
         SNYK_TEST_NAME: ${{ inputs.snyk_test }}
       run: $GITHUB_ACTION_PATH/../../../scripts/snyk-test.sh
 

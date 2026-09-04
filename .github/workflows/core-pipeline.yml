@@ -134,9 +134,8 @@ jobs:
         if: ${{ inputs.security_test_options == 'snyk' || inputs.security_test_options == 'both' }}
         id: snyk-tests
         uses: ./.github/core-pipeline/.github/actions/snyk
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
+          snyk_token: ${{ secrets.SNYK_TOKEN }}
           snyk_dockerfile_path: ${{ inputs.dockerfile_path || 'Dockerfile' }}
           snyk_container_options: ${{ inputs.docker_options }}
 
