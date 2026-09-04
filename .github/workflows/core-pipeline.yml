@@ -41,6 +41,7 @@ on:
     inputs:
       workflow_type: { type: string, default: "containers" }
       pipeline_mode: { type: string, default: "build_and_push" }
+      container_registry: { type: string, default: "github" }
       gitops_engine: { type: string, default: "argocd" }
       deploy: { type: boolean, default: true }
       argocd_deployment_mode: { type: string, default: "kustomize" }
@@ -53,6 +54,8 @@ on:
       REGISTRY: { required: false }
       REGISTRY_USERNAME: { required: false }
       REGISTRY_PASSWORD: { required: false }
+      GIT_REGISTRY_TOKEN: { required: false }
+      SNYK_TOKEN: { required: false }
       ARGOCD_SERVER: { required: false }
       ARGOCD_TOKEN: { required: false }
       GITOPS_SSH_PRIVATE_KEY: { required: false }
