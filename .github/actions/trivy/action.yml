@@ -11,3 +11,4 @@ runs:
         scan-ref: '.'
         format: 'table'
         exit-code: '0'
+

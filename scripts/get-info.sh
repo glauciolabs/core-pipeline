@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ ! -f info.yaml ]]; then
-  echo "[ERROR] info.yaml not found at repository root."
+if [[ -f info.yaml ]]; then
+  INFO_FILE="info.yaml"
+elif [[ -f metadata.yml ]]; then
+  INFO_FILE="metadata.yml"
+else
+  echo "[ERROR] info.yaml or metadata.yml not found at repository root."
   exit 1
 fi
 
@@ -26,10 +30,10 @@ org_name="${GITHUB_REPOSITORY_OWNER:-unknown}"
 repo_full="${GITHUB_REPOSITORY:-unknown/unknown}"
 repo_url="git@github.com:${repo_full}.git"
 
-app_name=$(run_yq -r '.app.name' info.yaml)
-app_project=$(run_yq -r '.app.project' info.yaml)
-namespace=$(run_yq -r '.app.namespace' info.yaml)
-repo_tag_base=$(run_yq -r '.app.version' info.yaml)
+app_name=$(run_yq -r '.app.name' "$INFO_FILE")
+app_project=$(run_yq -r '.app.project' "$INFO_FILE")
+namespace=$(run_yq -r '.app.namespace' "$INFO_FILE")
+repo_tag_base=$(run_yq -r '.app.version' "$INFO_FILE")
 commit_id=$(git rev-parse --short HEAD)
 
 last_tag="$(git describe --tags --abbrev=0 2>/dev/null || echo "")"
