@@ -87,5 +87,6 @@ runs:
     - name: Upload result to GitHub Code Scanning
       if: steps.check_sarif.outputs.exists == 'true'
       uses: github/codeql-action/upload-sarif@v3
+      continue-on-error: true
       with:
         sarif_file: ${{ inputs.snyk_reports_dir }}/snyk.sarif
