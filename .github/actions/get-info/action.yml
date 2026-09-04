@@ -1,21 +1,51 @@
 name: "extract build info"
 description: "Read info.yaml and compute build metadata"
 outputs:
-  org_name: ${{ steps.info.outputs.org_name }}
-  app_name: ${{ steps.info.outputs.app_name }}
-  repo_tag: ${{ steps.info.outputs.repo_tag }}
-  app_project: ${{ steps.info.outputs.app_project }}
-  environment: ${{ steps.info.outputs.environment }}
-  repo_url: ${{ steps.info.outputs.repo_url }}
-  argocd_project_namespace: ${{ steps.info.outputs.argocd_project_namespace }}
-  namespace: ${{ steps.info.outputs.namespace }}
-  tag_exists: ${{ steps.info.outputs.tag_exists }}
-  kustomization_path: ${{ steps.info.outputs.kustomization_path }}
-  resource_group: ${{ steps.info.outputs.resource_group }}
-  cluster_name: ${{ steps.info.outputs.cluster_name }}
-  commit_id: ${{ steps.info.outputs.commit_id }}
-  last_tag_prefix: ${{ steps.info.outputs.last_tag_prefix }}
-  last_tag: ${{ steps.info.outputs.last_tag }}
+  org_name:
+    description: "org name"
+    value: ${{ steps.extract.outputs.org_name }}
+  app_name:
+    description: "app name"
+    value: ${{ steps.extract.outputs.app_name }}
+  repo_tag:
+    description: "repo tag"
+    value: ${{ steps.extract.outputs.repo_tag }}
+  app_project:
+    description: "app project"
+    value: ${{ steps.extract.outputs.app_project }}
+  environment:
+    description: "environment"
+    value: ${{ steps.extract.outputs.environment }}
+  repo_url:
+    description: "repo url"
+    value: ${{ steps.extract.outputs.repo_url }}
+  argocd_project_namespace:
+    description: "argocd project namespace"
+    value: ${{ steps.extract.outputs.argocd_project_namespace }}
+  namespace:
+    description: "namespace"
+    value: ${{ steps.extract.outputs.namespace }}
+  tag_exists:
+    description: "tag exists"
+    value: ${{ steps.extract.outputs.tag_exists }}
+  kustomization_path:
+    description: "kustomization path"
+    value: ${{ steps.extract.outputs.kustomization_path }}
+  resource_group:
+    description: "resource group"
+    value: ${{ steps.extract.outputs.resource_group }}
+  cluster_name:
+    description: "cluster name"
+    value: ${{ steps.extract.outputs.cluster_name }}
+  commit_id:
+    description: "commit id"
+    value: ${{ steps.extract.outputs.commit_id }}
+  last_tag_prefix:
+    description: "last tag prefix"
+    value: ${{ steps.extract.outputs.last_tag_prefix }}
+  last_tag:
+    description: "last tag"
+    value: ${{ steps.extract.outputs.last_tag }}
 
 runs:
   using: "composite"
