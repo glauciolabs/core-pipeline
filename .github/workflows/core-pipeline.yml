@@ -144,13 +144,6 @@ jobs:
         id: trivy-tests
         uses: ./.github/core-pipeline/.github/actions/trivy
 
-      - name: git tag
-        if: ${{ inputs.pipeline_mode != 'deploy_only' || inputs.security_test_options != '' }}
-        uses: ./.github/core-pipeline/.github/actions/tagging
-        with:
-          repo_tag: ${{ needs.get-info.outputs.repo_tag }}
-          tag_exists: ${{ needs.get-info.outputs.tag_exists }}
-
       - name: build application
         if: ${{ inputs.pipeline_mode != 'deploy_only' && inputs.workflow_type == 'containers' }}
         uses: ./.github/core-pipeline/.github/actions/build
@@ -161,6 +154,13 @@ jobs:
           dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
           registry_username: ${{ secrets.REGISTRY_USERNAME }}
           registry_password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: git tag
+        if: ${{ inputs.pipeline_mode != 'deploy_only' || inputs.security_test_options != '' }}
+        uses: ./.github/core-pipeline/.github/actions/tagging
+        with:
+          repo_tag: ${{ needs.get-info.outputs.repo_tag }}
+          tag_exists: ${{ needs.get-info.outputs.tag_exists }}
 
   cd:
     needs: [get-info, ci]
