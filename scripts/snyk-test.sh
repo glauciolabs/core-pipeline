@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "DEBUG: Length of SNYK_TOKEN is ${#SNYK_TOKEN:-0}"
+
 if [[ -z "${SNYK_TOKEN:-}" ]]; then
   echo "[ERROR] SNYK_TOKEN is required for snyk ${SNYK_TEST_NAME:-}."
   exit 1
