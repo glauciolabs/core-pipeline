@@ -35,6 +35,14 @@ on:
       kustomization_overlay:
         type: boolean
         required: false
+      docker_context:
+        type: string
+        required: false
+        default: '.'
+      dockerfile_path:
+        type: string
+        required: false
+        default: 'Dockerfile'
       security_test_options:
         type: choice
         options: [trivy, snyk, both]
@@ -50,6 +58,8 @@ on:
       argocd_deployment_mode: { type: string, default: "kustomize" }
       argocd_application_manifest: { type: string, default: "" }
       kustomization_overlay: { type: boolean, default: false }
+      docker_context: { type: string, default: "." }
+      dockerfile_path: { type: string, default: "Dockerfile" }
       security_test_options: { type: string, default: "both" }
     secrets:
       DOCKERHUB_USERNAME: { required: false }
@@ -135,6 +145,8 @@ jobs:
         id: build-app
         uses: ./.github/core-pipeline/.github/actions/build
         with:
+          docker_context: ${{ inputs.docker_context }}
+          dockerfile: ${{ inputs.dockerfile_path }}
           container_registry: ${{ inputs.container_registry }}
           repo_tag: ${{ needs.get-info.outputs.repo_tag }}
           dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -167,6 +179,8 @@ jobs:
         if: ${{ inputs.pipeline_mode != 'deploy_only' && inputs.workflow_type == 'containers' }}
         uses: ./.github/core-pipeline/.github/actions/build
         with:
+          docker_context: ${{ inputs.docker_context }}
+          dockerfile: ${{ inputs.dockerfile_path }}
           container_registry: ${{ inputs.container_registry }}
           repo_tag: ${{ needs.get-info.outputs.repo_tag }}
           dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}

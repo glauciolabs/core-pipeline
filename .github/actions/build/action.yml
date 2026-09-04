@@ -6,6 +6,14 @@ inputs:
     description: "Target registry: github or dockerhub"
     required: false
     default: "github"
+  docker_context:
+    description: "Docker build context path"
+    required: false
+    default: "."
+  dockerfile:
+    description: "Dockerfile path"
+    required: false
+    default: "Dockerfile"
   repo_tag:
     description: "Tag to push"
     required: true
@@ -73,7 +81,8 @@ runs:
       id: docker_build
       uses: docker/build-push-action@v6
       with:
-        context: .
+        context: ${{ inputs.docker_context }}
+        file: ${{ inputs.dockerfile }}
         push: ${{ inputs.push == 'true' }}
         load: ${{ inputs.load == 'true' }}
         tags: |
