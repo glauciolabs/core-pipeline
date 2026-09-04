@@ -47,6 +47,10 @@ on:
         type: string
         required: false
         default: 'linux/amd64'
+      snyk_fail_on_issues:
+        type: string
+        required: false
+        default: 'true'
       security_test_options:
         type: choice
         options: [trivy, snyk, both]
@@ -65,6 +69,7 @@ on:
       docker_context: { type: string, default: "." }
       dockerfile_path: { type: string, default: "Dockerfile" }
       docker_platforms: { type: string, default: "linux/amd64" }
+      snyk_fail_on_issues: { type: string, default: "true" }
       security_test_options: { type: string, default: "both" }
     secrets:
       DOCKERHUB_USERNAME: { required: false }
@@ -171,6 +176,7 @@ jobs:
           snyk_dockerfile_path: ${{ inputs.dockerfile_path || 'Dockerfile' }}
           snyk_additional_args: ${{ inputs.workflow_type == 'containers' && steps.build-app.outputs.image_name || '' }}
           snyk_container_options: ${{ inputs.docker_options }}
+          snyk_fail_on_issues: ${{ inputs.snyk_fail_on_issues }}
 
       - name: trivy tests
         if: ${{ inputs.security_test_options == 'trivy' || inputs.security_test_options == 'both' }}
