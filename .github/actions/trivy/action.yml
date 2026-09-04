@@ -1,14 +1,25 @@
 name: "Trivy Security Scan"
 description: "Run Trivy vulnerability scanner"
 
+inputs:
+  scan_type:
+    description: 'Type of scan (fs, image)'
+    required: false
+    default: 'fs'
+  scan_ref:
+    description: 'Reference to scan (e.g. image name or path)'
+    required: false
+    default: '.'
+
 runs:
   using: "composite"
   steps:
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
       with:
-        scan-type: 'fs'
-        scan-ref: '.'
+        scan-type: ${{ inputs.scan_type }}
+        image-ref: ${{ inputs.scan_type == 'image' && inputs.scan_ref || '' }}
+        scan-ref: ${{ inputs.scan_type == 'fs' && inputs.scan_ref || '' }}
         format: 'table'
         exit-code: '0'
 

@@ -130,21 +130,40 @@ jobs:
           ref: feat/new-pipeline
           path: .github/core-pipeline
 
+      - name: build application (load)
+        if: ${{ inputs.pipeline_mode != 'deploy_only' && inputs.workflow_type == 'containers' }}
+        id: build-app
+        uses: ./.github/core-pipeline/.github/actions/build
+        with:
+          container_registry: ${{ inputs.container_registry }}
+          repo_tag: ${{ needs.get-info.outputs.repo_tag }}
+          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry_username: ${{ secrets.REGISTRY_USERNAME }}
+          registry_password: ${{ secrets.REGISTRY_PASSWORD }}
+          push: 'false'
+          load: 'true'
+
       - name: snyk tests
         if: ${{ inputs.security_test_options == 'snyk' || inputs.security_test_options == 'both' }}
         id: snyk-tests
         uses: ./.github/core-pipeline/.github/actions/snyk
         with:
           snyk_token: ${{ secrets.SNYK_TOKEN }}
+          snyk_test: ${{ inputs.workflow_type == 'containers' && 'container' || 'code' }}
           snyk_dockerfile_path: ${{ inputs.dockerfile_path || 'Dockerfile' }}
+          snyk_additional_args: ${{ inputs.workflow_type == 'containers' && steps.build-app.outputs.image_name || '' }}
           snyk_container_options: ${{ inputs.docker_options }}
 
       - name: trivy tests
         if: ${{ inputs.security_test_options == 'trivy' || inputs.security_test_options == 'both' }}
         id: trivy-tests
         uses: ./.github/core-pipeline/.github/actions/trivy
+        with:
+          scan_type: ${{ inputs.workflow_type == 'containers' && 'image' || 'fs' }}
+          scan_ref: ${{ inputs.workflow_type == 'containers' && steps.build-app.outputs.image_name || '.' }}
 
-      - name: build application
+      - name: push application
         if: ${{ inputs.pipeline_mode != 'deploy_only' && inputs.workflow_type == 'containers' }}
         uses: ./.github/core-pipeline/.github/actions/build
         with:
@@ -154,6 +173,8 @@ jobs:
           dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
           registry_username: ${{ secrets.REGISTRY_USERNAME }}
           registry_password: ${{ secrets.REGISTRY_PASSWORD }}
+          push: 'true'
+          load: 'false'
 
       - name: git tag
         if: ${{ inputs.pipeline_mode != 'deploy_only' || inputs.security_test_options != '' }}
@@ -161,7 +182,6 @@ jobs:
         with:
           repo_tag: ${{ needs.get-info.outputs.repo_tag }}
           tag_exists: ${{ needs.get-info.outputs.tag_exists }}
-
   cd:
     needs: [get-info, ci]
     runs-on: self-hosted

@@ -21,6 +21,19 @@ inputs:
   registry_password:
     description: "GitHub Registry Password / Token"
     required: false
+  push:
+    description: "Push image to registry"
+    required: false
+    default: "true"
+  load:
+    description: "Load image to Docker daemon"
+    required: false
+    default: "false"
+
+outputs:
+  image_name:
+    description: "The full image name with tag"
+    value: ${{ steps.meta.outputs.image_name }}:${{ inputs.repo_tag }}
 
 runs:
   using: "composite"
@@ -57,10 +70,12 @@ runs:
         fi
 
     - name: Build and push
+      id: docker_build
       uses: docker/build-push-action@v6
       with:
         context: .
-        push: true
+        push: ${{ inputs.push == 'true' }}
+        load: ${{ inputs.load == 'true' }}
         tags: |
           ${{ steps.meta.outputs.image_name }}:${{ inputs.repo_tag }}
           ${{ steps.meta.outputs.image_name }}:latest
