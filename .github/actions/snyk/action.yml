@@ -49,7 +49,6 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - uses: actions/checkout@v4
 
     - name: run snyk ${{ inputs.snyk_test }}
       shell: bash
