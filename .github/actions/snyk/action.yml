@@ -2,36 +2,47 @@ name: "snyk tests"
 description: "run snyk security tests"
 inputs:
   snyk_debug:
+    description: "Snyk debug mode"
     required: false
     default: "false"
   snyk_test:
+    description: "Snyk test type"
     required: true
     default: "code"
   snyk_dockerfile_path:
+    description: "Dockerfile path"
     required: false
     default: "Dockerfile"
   snyk_multi_dockerfile:
+    description: "Multi Dockerfile"
     required: false
     default: "false"
   snyk_container_options:
+    description: "Container options"
     required: false
     default: ""
   snyk_severity_threshold:
+    description: "Severity threshold"
     required: false
     default: "high"
   snyk_additional_args:
+    description: "Additional args"
     required: false
     default: ""
   snyk_fail_on_issues:
+    description: "Fail on issues"
     required: false
     default: "true"
   snyk_enablemonitor:
+    description: "Enable monitor"
     required: false
     default: "true"
   snyk_enable_report:
+    description: "Enable report"
     required: false
     default: "true"
   snyk_reports_dir:
+    description: "Reports dir"
     required: false
     default: "reports/snyk"
 
