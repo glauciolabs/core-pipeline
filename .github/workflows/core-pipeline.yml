@@ -91,12 +91,20 @@ jobs:
       last_tag_prefix: ${{ steps.info.outputs.last_tag_prefix }}
       last_tag: ${{ steps.info.outputs.last_tag }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout caller repo
+        uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+
+      - name: Checkout core-pipeline repo
+        uses: actions/checkout@v4
+        with:
+          repository: glauciolabs/core-pipeline
+          ref: feat/new-pipeline
+          path: .github/core-pipeline
 
       - name: get info
         id: info
-        uses: ./.github/actions/get-info.yml
+        uses: ./.github/core-pipeline/.github/actions/get-info.yml
         with:
           namespace_override: ${{ inputs.namespace_override || false }}
           kustomization_overlay: ${{ inputs.kustomization_overlay || false }}
@@ -108,13 +116,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout caller repo
+        uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+
+      - name: Checkout core-pipeline repo
+        uses: actions/checkout@v4
+        with:
+          repository: glauciolabs/core-pipeline
+          ref: feat/new-pipeline
+          path: .github/core-pipeline
 
       - name: snyk tests
         if: ${{ inputs.security_test_options == 'snyk' || inputs.security_test_options == 'both' }}
         id: snyk-tests
-        uses: ./.github/actions/snyk.yml
+        uses: ./.github/core-pipeline/.github/actions/snyk.yml
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
@@ -124,18 +140,18 @@ jobs:
       - name: trivy tests
         if: ${{ inputs.security_test_options == 'trivy' || inputs.security_test_options == 'both' }}
         id: trivy-tests
-        uses: ./.github/actions/trivy.yml
+        uses: ./.github/core-pipeline/.github/actions/trivy.yml
 
       - name: git tag
         if: ${{ inputs.pipeline_mode != 'deploy_only' || inputs.security_test_options != '' }}
-        uses: ./.github/actions/tagging.yml
+        uses: ./.github/core-pipeline/.github/actions/tagging.yml
         with:
           repo_tag: ${{ needs.get-info.outputs.repo_tag }}
           tag_exists: ${{ needs.get-info.outputs.tag_exists }}
 
       - name: build application
         if: ${{ inputs.pipeline_mode != 'deploy_only' && inputs.workflow_type == 'containers' }}
-        uses: ./.github/actions/build.yml
+        uses: ./.github/core-pipeline/.github/actions/build.yml
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -150,12 +166,20 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout caller repo
+        uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+
+      - name: Checkout core-pipeline repo
+        uses: actions/checkout@v4
+        with:
+          repository: glauciolabs/core-pipeline
+          ref: feat/new-pipeline
+          path: .github/core-pipeline
 
       - name: deploy with ${{ inputs.gitops_engine }}
         if: ${{ inputs.pipeline_mode != 'build_only' || inputs.deploy == 'true' }}
-        uses: ./.github/actions/deploy.yml
+        uses: ./.github/core-pipeline/.github/actions/deploy.yml
         with:
           argocd_server: ${{ secrets.ARGOCD_SERVER }}
           argocd_token: ${{ secrets.ARGOCD_TOKEN }}
