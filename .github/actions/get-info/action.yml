@@ -47,6 +47,23 @@ outputs:
     description: "last tag"
     value: ${{ steps.extract.outputs.last_tag }}
 
+inputs:
+  namespace_override:
+    description: "Namespace override"
+    required: false
+  kustomization_overlay:
+    description: "Kustomization overlay"
+    required: false
+  cluster_develop:
+    description: "Develop cluster URL"
+    required: false
+  cluster_production:
+    description: "Production cluster URL"
+    required: false
+  cluster_prod:
+    description: "Prod cluster URL"
+    required: false
+
 runs:
   using: "composite"
   steps:
@@ -59,4 +76,4 @@ runs:
         CLUSTER_DEVELOP: ${{ inputs.cluster_develop }}
         CLUSTER_PRODUCTION: ${{ inputs.cluster_production }}
         CLUSTER_PROD: ${{ inputs.cluster_prod }}
-      run: $GITHUB_ACTION_PATH/../../scripts/get-info.sh
+      run: $GITHUB_ACTION_PATH/../../../scripts/get-info.sh

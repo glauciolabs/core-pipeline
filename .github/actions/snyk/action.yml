@@ -72,7 +72,7 @@ runs:
         SNYK_REPORTS_DIR: ${{ inputs.snyk_reports_dir }}
         SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
         SNYK_TEST_NAME: ${{ inputs.snyk_test }}
-      run: $GITHUB_ACTION_PATH/../../scripts/snyk/snyk-test.sh
+      run: $GITHUB_ACTION_PATH/../../../scripts/snyk/snyk-test.sh
 
     - name: Upload result to GitHub Code Scanning
       uses: github/codeql-action/upload-sarif@v2
