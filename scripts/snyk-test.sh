@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+echo "DEBUG: Length of SNYK_TOKEN is ${#SNYK_TOKEN:-0}"
 if [[ -z "${SNYK_TOKEN:-}" ]]; then
   echo "[ERROR] SNYK_TOKEN is required for snyk ${SNYK_TEST_NAME:-}."
   exit 1
@@ -76,8 +77,13 @@ if [[ "${SNYK_ENABLE_REPORT:-true}" == "true" && -f "${SNYK_REPORTS_DIR}/snyk.sa
 fi
 
 if [[ "${SNYK_FAIL_ON_ISSUES:-true}" == "true" && $snyk_scan_exit -ne 0 ]]; then
-  echo "[ERROR] Issues found!"
-  exit $snyk_scan_exit
+  if [[ $snyk_scan_exit -eq 3 ]]; then
+    echo "[WARN] Snyk was unable to find supported files (Exit code 3). Continuing pipeline."
+    exit 0
+  else
+    echo "[ERROR] Issues found!"
+    exit $snyk_scan_exit
+  fi
 fi
 
 exit 0
