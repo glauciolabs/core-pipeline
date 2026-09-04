@@ -39,4 +39,4 @@ runs:
         GITHUB_TOKEN: ${{ github.token }}
         REPO: ${{ github.repository }}
         GITHUB_SHA: ${{ github.sha }}
-      run: $GITHUB_ACTION_PATH/../../../scripts/git_tag.sh
+      run: $GITHUB_ACTION_PATH/../../scripts/git_tag.sh

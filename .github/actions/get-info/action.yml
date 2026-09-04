@@ -29,4 +29,4 @@ runs:
         CLUSTER_DEVELOP: ${{ inputs.cluster_develop }}
         CLUSTER_PRODUCTION: ${{ inputs.cluster_production }}
         CLUSTER_PROD: ${{ inputs.cluster_prod }}
-      run: $GITHUB_ACTION_PATH/../../../scripts/get-info.sh
+      run: $GITHUB_ACTION_PATH/../../scripts/get-info.sh

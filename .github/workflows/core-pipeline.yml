@@ -104,7 +104,7 @@ jobs:
 
       - name: get info
         id: info
-        uses: ./.github/core-pipeline/.github/actions/get-info.yml
+        uses: ./.github/core-pipeline/.github/actions/get-info
         with:
           namespace_override: ${{ inputs.namespace_override || false }}
           kustomization_overlay: ${{ inputs.kustomization_overlay || false }}
@@ -130,7 +130,7 @@ jobs:
       - name: snyk tests
         if: ${{ inputs.security_test_options == 'snyk' || inputs.security_test_options == 'both' }}
         id: snyk-tests
-        uses: ./.github/core-pipeline/.github/actions/snyk.yml
+        uses: ./.github/core-pipeline/.github/actions/snyk
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
@@ -140,26 +140,25 @@ jobs:
       - name: trivy tests
         if: ${{ inputs.security_test_options == 'trivy' || inputs.security_test_options == 'both' }}
         id: trivy-tests
-        uses: ./.github/core-pipeline/.github/actions/trivy.yml
+        uses: ./.github/core-pipeline/.github/actions/trivy
 
       - name: git tag
         if: ${{ inputs.pipeline_mode != 'deploy_only' || inputs.security_test_options != '' }}
-        uses: ./.github/core-pipeline/.github/actions/tagging.yml
+        uses: ./.github/core-pipeline/.github/actions/tagging
         with:
           repo_tag: ${{ needs.get-info.outputs.repo_tag }}
           tag_exists: ${{ needs.get-info.outputs.tag_exists }}
 
       - name: build application
         if: ${{ inputs.pipeline_mode != 'deploy_only' && inputs.workflow_type == 'containers' }}
-        uses: ./.github/core-pipeline/.github/actions/build.yml
-        env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-          REGISTRY: ${{ secrets.REGISTRY }}
-          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
-          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        uses: ./.github/core-pipeline/.github/actions/build
         with:
-          docker_options: ${{ inputs.pipeline_mode }}
+          container_registry: ${{ inputs.container_registry }}
+          repo_tag: ${{ needs.get-info.outputs.repo_tag }}
+          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry_username: ${{ secrets.REGISTRY_USERNAME }}
+          registry_password: ${{ secrets.REGISTRY_PASSWORD }}
 
   cd:
     needs: [get-info, ci]
@@ -179,7 +178,7 @@ jobs:
 
       - name: deploy with ${{ inputs.gitops_engine }}
         if: ${{ inputs.pipeline_mode != 'build_only' || inputs.deploy == 'true' }}
-        uses: ./.github/core-pipeline/.github/actions/deploy.yml
+        uses: ./.github/core-pipeline/.github/actions/deploy
         with:
           argocd_server: ${{ secrets.ARGOCD_SERVER }}
           argocd_token: ${{ secrets.ARGOCD_TOKEN }}

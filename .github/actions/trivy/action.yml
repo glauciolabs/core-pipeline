@@ -1,0 +1,13 @@
+name: "Trivy Security Scan"
+description: "Run Trivy vulnerability scanner"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'table'
+        exit-code: '0'

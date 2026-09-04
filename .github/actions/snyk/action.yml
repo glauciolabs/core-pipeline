@@ -51,15 +51,15 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@v4
 
     - name: run snyk ${{ inputs.snyk_test }}
       shell: bash
       env:
-        GIT_ORGANIZATION_NAME: ${{}}
-        GIT_BRANCH_REF: ${{ GITHUB_REF_NAME }}
-        GIT_REPOSITORY_ID: ${{ GITHUB_REPOSITORY_ID }}
-        GIT_REPOSITORY_NAME: ${{ GITHUB_REPOSITORY }}
+        GIT_ORGANIZATION_NAME: ${{ github.repository_owner }}
+        GIT_BRANCH_REF: ${{ github.ref_name }}
+        GIT_REPOSITORY_ID: ${{ github.repository_id }}
+        GIT_REPOSITORY_NAME: ${{ github.repository }}
         SNYK_DEBUG: ${{ inputs.snyk_debug }}
         SNYK_DOCKERFILE_PATH: ${{ inputs.snyk_dockerfile_path }}
         SNYK_MULTI_DOCKERFILE: ${{ inputs.snyk_multi_dockerfile }}
@@ -70,9 +70,9 @@ runs:
         SNYK_ENABLE_MONITOR: ${{ inputs.snyk_enablemonitor }}
         SNYK_ENABLE_REPORT: ${{ inputs.snyk_enable_report }}
         SNYK_REPORTS_DIR: ${{ inputs.snyk_reports_dir }}
-        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
         SNYK_TEST_NAME: ${{ inputs.snyk_test }}
-      run: $GITHUB_ACTION_PATH/../../../scripts/snyk/snyk-test.sh
+      run: $GITHUB_ACTION_PATH/../../scripts/snyk/snyk-test.sh
 
     - name: Upload result to GitHub Code Scanning
       uses: github/codeql-action/upload-sarif@v2
