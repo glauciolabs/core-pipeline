@@ -176,7 +176,7 @@ jobs:
           snyk_dockerfile_path: ${{ inputs.dockerfile_path || 'Dockerfile' }}
           snyk_additional_args: ${{ inputs.workflow_type == 'containers' && steps.build-app.outputs.image_name || '' }}
           snyk_container_options: ${{ inputs.docker_options }}
-          snyk_fail_on_issues: ${{ inputs.snyk_fail_on_issues }}
+          snyk_fail_on_issues: ${{ vars.SNYK_FAIL_ON_ISSUES || inputs.snyk_fail_on_issues }}
 
       - name: trivy tests
         if: ${{ inputs.security_test_options == 'trivy' || inputs.security_test_options == 'both' }}
