@@ -1,5 +1,8 @@
 name: Core Pipeline
 
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: "true"
+
 on:
   workflow_dispatch:
     inputs:
@@ -134,8 +137,8 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          dockerfile_path: ${{ inputs.dockerfile_path || 'Dockerfile' }}
-          docker_options: ${{ inputs.docker_options }}
+          snyk_dockerfile_path: ${{ inputs.dockerfile_path || 'Dockerfile' }}
+          snyk_container_options: ${{ inputs.docker_options }}
 
       - name: trivy tests
         if: ${{ inputs.security_test_options == 'trivy' || inputs.security_test_options == 'both' }}

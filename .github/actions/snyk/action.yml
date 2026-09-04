@@ -3,50 +3,37 @@ description: "run snyk security tests"
 inputs:
   snyk_debug:
     required: false
-    default: false
-    type: boolean
+    default: "false"
   snyk_test:
-    type: choice
     required: true
-    options: [container, open-source, iac, code]
-    default: code
+    default: "code"
   snyk_dockerfile_path:
     required: false
-    default: Dockerfile
-    type: string
+    default: "Dockerfile"
   snyk_multi_dockerfile:
     required: false
-    default: false
-    type: boolean
-  snyk_contaienr_options:
+    default: "false"
+  snyk_container_options:
     required: false
     default: ""
-    type: string
   snyk_severity_threshold:
-    required: true
-    default: high
-    type: choice
-    options: [low, medium, high, critical]
+    required: false
+    default: "high"
   snyk_additional_args:
     required: false
     default: ""
-    type: string
   snyk_fail_on_issues:
     required: false
-    default: true
-    type: boolean
+    default: "true"
   snyk_enablemonitor:
     required: false
-    default: true
-    type: boolean
+    default: "true"
   snyk_enable_report:
     required: false
-    default: true
-    type: boolean
+    default: "true"
   snyk_reports_dir:
     required: false
     default: "reports/snyk"
-    type: string
 
 runs:
   using: "composite"
@@ -63,7 +50,7 @@ runs:
         SNYK_DEBUG: ${{ inputs.snyk_debug }}
         SNYK_DOCKERFILE_PATH: ${{ inputs.snyk_dockerfile_path }}
         SNYK_MULTI_DOCKERFILE: ${{ inputs.snyk_multi_dockerfile }}
-        SNYK_DOCKER_OPTIONS: ${{ inputs.snyk_contaienr_options }}
+        SNYK_DOCKER_OPTIONS: ${{ inputs.snyk_container_options }}
         SNYK_SEVERITY_THRESHOLD: ${{ inputs.snyk_severity_threshold }}
         SNYK_ADDITIONAL_ARGS: ${{ inputs.snyk_additional_args }}
         SNYK_FAIL_ON_ISSUES: ${{ inputs.snyk_fail_on_issues }}
