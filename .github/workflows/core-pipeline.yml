@@ -39,10 +39,14 @@ on:
 
   workflow_call:
     inputs:
-      pipeline_mode: { type: string, default: build_and_push }
-      gitops_app: { type: string, default: argocd }
-      argocd_deployment_mode: { type: string, default: kustomize }
+      workflow_type: { type: string, default: "containers" }
+      pipeline_mode: { type: string, default: "build_and_push" }
+      gitops_engine: { type: string, default: "argocd" }
+      deploy: { type: boolean, default: true }
+      argocd_deployment_mode: { type: string, default: "kustomize" }
       argocd_application_manifest: { type: string, default: "" }
+      kustomization_overlay: { type: boolean, default: false }
+      security_test_options: { type: string, default: "both" }
     secrets:
       DOCKERHUB_USERNAME: { required: false }
       DOCKERHUB_TOKEN: { required: false }
@@ -121,14 +125,14 @@ jobs:
 
       - name: git tag
         if: ${{ inputs.pipeline_mode != 'deploy_only' || inputs.security_test_options != '' }}
-        uses: ./.github/actions/git-tag.yml
+        uses: ./.github/actions/tagging.yml
         with:
           repo_tag: ${{ needs.get-info.outputs.repo_tag }}
           tag_exists: ${{ needs.get-info.outputs.tag_exists }}
 
       - name: build application
         if: ${{ inputs.pipeline_mode != 'deploy_only' && inputs.workflow_type == 'containers' }}
-        uses: ./.github/actions/build-containers.yml
+        uses: ./.github/actions/build.yml
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
