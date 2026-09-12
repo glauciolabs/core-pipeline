@@ -95,7 +95,7 @@ defaults:
 
 jobs:
   get-info:
-    runs-on: [self-hosted, k8s_runners]
+    runs-on: [self-hosted, k8s-runners]
     timeout-minutes: 10
     outputs:
       org_name: ${{ steps.info.outputs.org_name }}
@@ -136,7 +136,7 @@ jobs:
 
   ci:
     needs: get-info
-    runs-on: [self-hosted, k8s_runners]
+    runs-on: [self-hosted, k8s-runners]
     timeout-minutes: 360
     steps:
       - name: Checkout caller repo
@@ -210,7 +210,7 @@ jobs:
           tag_exists: ${{ needs.get-info.outputs.tag_exists }}
   cd:
     needs: [get-info, ci]
-    runs-on: [self-hosted, k8s_runners]
+    runs-on: [self-hosted, k8s-runners]
     timeout-minutes: 30
     steps:
       - name: Checkout caller repo
