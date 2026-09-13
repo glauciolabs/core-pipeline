@@ -8,7 +8,7 @@ if [[ -z "${SNYK_TOKEN:-}" ]]; then
 fi
 
 snyk_monitor_arg=""
-if [[ "${SNYK_ENABLE_MONITOR:-false}" == "true" && "${GIT_BRANCH_REF:-}" =~ ^(main|release)$ ]]; then
+if [[ "${SNYK_ENABLE_MONITOR:-false}" == "true" && "${GIT_BRANCH_REF:-}" =~ ^(main|master|release)$ ]]; then
   echo "[INFO] snyk monitor is enabled"
   snyk_monitor_arg="monitor"
 fi
