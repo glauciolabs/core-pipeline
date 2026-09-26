@@ -126,7 +126,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: glauciolabs/core-pipeline
-          ref: feat/new-pipeline
+          ref: develop
           path: .github/core-pipeline
 
       - name: get info
@@ -153,7 +153,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: glauciolabs/core-pipeline
-          ref: v1.0.0
+          ref: develop
           path: .github/core-pipeline
 
       - name: semgrep (secrets & certs)
@@ -243,7 +243,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: glauciolabs/core-pipeline
-          ref: feat/new-pipeline
+          ref: develop
           path: .github/core-pipeline
 
       - name: deploy with ${{ inputs.gitops_engine }}
