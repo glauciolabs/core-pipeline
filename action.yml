@@ -1,0 +1,94 @@
+name: core pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      pipeline_mode:
+        type: choice
+        options: [build_and_push, build_only, deploy_manifests, deploy_argocd]
+        default: build_and_push
+
+  workflow_call:
+    secrets:
+      DOCKERHUB_USERNAME: { required: false }
+      DOCKERHUB_TOKEN: { required: false }
+      REGISTRY: { required: false }
+      REGISTRY_USERNAME: { required: false }
+      REGISTRY_PASSWORD: { required: false }
+      GIT_REGISTRY_TOKEN: { required: false }
+      SNYK_TOKEN: { required: false }
+      ARGOCD_SERVER: { required: false }
+      ARGOCD_TOKEN: { required: false }
+      GITOPS_SSH_PRIVATE_KEY: { required: false }
+      CLUSTER_DEVELOP: { required: false }
+      CLUSTER_PRODUCTION: { required: false }
+      KUBECONFIG: { required: false }
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: core-pipeline-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  core:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0 }
+
+      - name: Extract build info
+        id: info
+        uses: glauciolabs/core-pipeline/actions/extract-info
+        with:
+          namespace_override: ${{ inputs.namespace_override }}
+          kustomization_overlay: ${{ inputs.kustomization_overlay }}
+          cluster_develop: ${{ secrets.CLUSTER_DEVELOP }}
+          cluster_production: ${{ secrets.CLUSTER_PRODUCTION }}
+
+      - name: Build containers
+        if: ${{ inputs.pipeline_mode != 'deploy_only' && inputs.archetype == 'containers' }}
+        uses: glauciolabs/core-pipeline/.github/actions/build-containers
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          REGISTRY: ${{ secrets.REGISTRY }}
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        with:
+          docker_options: ${{ inputs.pipeline_mode }}
+
+      - name: Git tag
+        # tag para build_and_push e deploy_only
+        if: ${{ inputs.pipeline_mode != 'build_only' }}
+        uses: glauciolabs/core-pipeline/.github/actions/git-tag
+        with:
+          repo_tag: ${{ steps.info.outputs.repo_tag }}
+          tag_exists: ${{ steps.info.outputs.tag_exists }}
+          environment: ${{ steps.info.outputs.environment }}
+          create_release: ${{ steps.info.outputs.environment == 'production' }}
+
+      - name: Deploy with Argo CD
+        if: ${{ inputs.pipeline_mode != 'build_only' && inputs.gitops_app == 'argocd' }}
+        uses: glauciolabs/core-pipeline/.github/actions/deploy-argocd
+        with:
+          argocd_server: ${{ secrets.ARGOCD_SERVER }}
+          argocd_token: ${{ secrets.ARGOCD_TOKEN }}
+          gitops_ssh_private_key: ${{ secrets.GITOPS_SSH_PRIVATE_KEY }}
+          repo_url: ${{ steps.info.outputs.repo_url }}
+          app_name: ${{ steps.info.outputs.app_name }}
+          app_project: ${{ steps.info.outputs.app_project }}
+          cluster_url: ${{ steps.info.outputs.cluster_url }}
+          argocd_project_namespace: ${{ steps.info.outputs.argocd_project_namespace }}
+          environment: ${{ steps.info.outputs.environment }}
+          kustomization_path: ${{ steps.info.outputs.kustomization_path }}
+          namespace: ${{ steps.info.outputs.namespace }}
+          repo_tag: ${{ steps.info.outputs.repo_tag }}
+          deployment_mode: ${{ inputs.argocd_deployment_mode }}
+          application_manifest_path: ${{ inputs.argocd_application_manifest }}

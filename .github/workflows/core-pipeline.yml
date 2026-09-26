@@ -1,0 +1,266 @@
+name: Core Pipeline
+
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: "true"
+
+on:
+  workflow_dispatch:
+    inputs:
+      workflow_type:
+        type: choice
+        options: [container, app]
+        default: containers
+      pipeline_mode:
+        type: choice
+        options: [build_and_deploy, build_only, deploy_only, security_test]
+        default: build_and_push
+      gitops_engine:
+        type: choice
+        options: [argocd, fluxcd]
+        default: argocd
+      deploy:
+        required: true
+        type: boolean
+        default: false
+      container_registry:
+        description: container registry
+        type: choice
+        required: false
+        default: github
+        options: [dockerhub, github ]
+      argocd_deployment_mode:
+        type: choice
+        required: false
+        options: [kustomization, application]
+      kustomization_overlay:
+        type: boolean
+        required: false
+      docker_context:
+        type: string
+        required: false
+        default: '.'
+      dockerfile_path:
+        type: string
+        required: false
+        default: 'Dockerfile'
+      docker_platforms:
+        type: string
+        required: false
+        default: 'linux/amd64'
+      snyk_fail_on_issues:
+        type: string
+        required: false
+        default: 'true'
+      security_test_options:
+        type: choice
+        options: [trivy, snyk, both]
+        default: both
+
+  workflow_call:
+    inputs:
+      workflow_type: { type: string, default: "containers" }
+      pipeline_mode: { type: string, default: "build_and_push" }
+      container_registry: { type: string, default: "github" }
+      gitops_engine: { type: string, default: "argocd" }
+      deploy: { type: boolean, default: true }
+      argocd_deployment_mode: { type: string, default: "kustomize" }
+      argocd_application_manifest: { type: string, default: "" }
+      kustomization_overlay: { type: boolean, default: false }
+      docker_context: { type: string, default: "." }
+      dockerfile_path: { type: string, default: "Dockerfile" }
+      docker_platforms: { type: string, default: "linux/amd64" }
+      snyk_fail_on_issues: { type: string, default: "true" }
+      security_test_options: { type: string, default: "both" }
+    secrets:
+      DOCKERHUB_USERNAME: { required: false }
+      DOCKERHUB_TOKEN: { required: false }
+      REGISTRY: { required: false }
+      REGISTRY_USERNAME: { required: false }
+      REGISTRY_PASSWORD: { required: false }
+      GIT_REGISTRY_TOKEN: { required: false }
+      SNYK_TOKEN: { required: false }
+      SONAR_TOKEN: { required: false }
+      ARGOCD_SERVER: { required: false }
+      ARGOCD_TOKEN: { required: false }
+      GITOPS_SSH_PRIVATE_KEY: { required: false }
+      CLUSTER_DEVELOP: { required: false }
+      CLUSTER_PRODUCTION: { required: false }
+
+concurrency:
+  group: core-pipeline-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  get-info:
+    runs-on:
+      group: k8s-runners
+      labels: [self-hosted]
+    timeout-minutes: 10
+    outputs:
+      org_name: ${{ steps.info.outputs.org_name }}
+      app_name: ${{ steps.info.outputs.app_name }}
+      repo_tag: ${{ steps.info.outputs.repo_tag }}
+      app_project: ${{ steps.info.outputs.app_project }}
+      environment: ${{ steps.info.outputs.environment }}
+      repo_url: ${{ steps.info.outputs.repo_url }}
+      argocd_project_namespace: ${{ steps.info.outputs.argocd_project_namespace }}
+      namespace: ${{ steps.info.outputs.namespace }}
+      tag_exists: ${{ steps.info.outputs.tag_exists }}
+      kustomization_path: ${{ steps.info.outputs.kustomization_path }}
+      resource_group: ${{ steps.info.outputs.resource_group }}
+      cluster_name: ${{ steps.info.outputs.cluster_name }}
+      commit_id: ${{ steps.info.outputs.commit_id }}
+      last_tag_prefix: ${{ steps.info.outputs.last_tag_prefix }}
+      last_tag: ${{ steps.info.outputs.last_tag }}
+      archetype: ${{ steps.info.outputs.archetype }}
+    steps:
+      - name: Checkout caller repo
+        uses: actions/checkout@v7
+        with: { fetch-depth: 0 }
+
+      - name: Checkout core-pipeline repo
+        uses: actions/checkout@v7
+        with:
+          repository: glauciolabs/core-pipeline
+          ref: feat/new-pipeline
+          path: .github/core-pipeline
+
+      - name: get info
+        id: info
+        uses: ./.github/core-pipeline/.github/actions/get-info
+        with:
+          namespace_override: ${{ inputs.namespace_override || false }}
+          kustomization_overlay: ${{ inputs.kustomization_overlay || false }}
+          cluster_develop: ${{ secrets.CLUSTER_DEVELOP }}
+          cluster_production: ${{ secrets.CLUSTER_PRODUCTION }}
+
+  ci:
+    needs: get-info
+    runs-on:
+      group: k8s-runners
+      labels: [self-hosted]
+    timeout-minutes: 360
+    steps:
+      - name: Checkout caller repo
+        uses: actions/checkout@v7
+        with: { fetch-depth: 0 }
+
+      - name: Checkout core-pipeline repo
+        uses: actions/checkout@v7
+        with:
+          repository: glauciolabs/core-pipeline
+          ref: v1.0.0
+          path: .github/core-pipeline
+
+      - name: semgrep (secrets & certs)
+        if: ${{ inputs.pipeline_mode != 'deploy_only' }}
+        run: |
+          echo "[INFO] Running Semgrep for secrets and certificates..."
+          python3 -m pip install semgrep
+          semgrep scan --config="p/secrets" --config="p/certificates" --error || true
+          
+      - name: language tests and lint
+        if: ${{ needs.get-info.outputs.archetype != 'generic' && inputs.pipeline_mode != 'deploy_only' }}
+        uses: ./.github/core-pipeline/.github/actions/language-tests
+        with:
+          archetype: ${{ needs.get-info.outputs.archetype }}
+          sonar_token: ${{ secrets.SONAR_TOKEN }}
+
+      - name: build application (load)
+        if: ${{ inputs.pipeline_mode != 'deploy_only' && inputs.workflow_type == 'containers' }}
+        id: build-app
+        uses: ./.github/core-pipeline/.github/actions/build
+        with:
+          docker_context: ${{ inputs.docker_context }}
+          dockerfile: ${{ inputs.dockerfile_path }}
+          container_registry: ${{ inputs.container_registry }}
+          repo_tag: ${{ needs.get-info.outputs.repo_tag }}
+          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry_username: ${{ secrets.REGISTRY_USERNAME }}
+          registry_password: ${{ secrets.REGISTRY_PASSWORD }}
+          push: 'false'
+          load: 'true'
+
+      - name: snyk tests
+        if: ${{ inputs.security_test_options == 'snyk' || inputs.security_test_options == 'both' }}
+        id: snyk-tests
+        uses: ./.github/core-pipeline/.github/actions/snyk
+        with:
+          snyk_token: ${{ secrets.SNYK_TOKEN }}
+          snyk_test: ${{ (inputs.workflow_type == 'containers' && inputs.pipeline_mode != 'deploy_only') && 'container' || 'code' }}
+          snyk_dockerfile_path: ${{ inputs.dockerfile_path || 'Dockerfile' }}
+          snyk_additional_args: ${{ (inputs.workflow_type == 'containers' && inputs.pipeline_mode != 'deploy_only') && steps.build-app.outputs.image_name || '' }}
+          snyk_container_options: ${{ inputs.docker_options }}
+          snyk_fail_on_issues: ${{ vars.SNYK_FAIL_ON_ISSUES || inputs.snyk_fail_on_issues }}
+
+      - name: trivy tests
+        if: ${{ inputs.security_test_options == 'trivy' || inputs.security_test_options == 'both' }}
+        id: trivy-tests
+        uses: ./.github/core-pipeline/.github/actions/trivy
+        with:
+          scan_type: ${{ (inputs.workflow_type == 'containers' && inputs.pipeline_mode != 'deploy_only') && 'image' || 'fs' }}
+          scan_ref: ${{ (inputs.workflow_type == 'containers' && inputs.pipeline_mode != 'deploy_only') && steps.build-app.outputs.image_name || '.' }}
+
+      - name: push application
+        if: ${{ inputs.pipeline_mode != 'deploy_only' && inputs.workflow_type == 'containers' }}
+        uses: ./.github/core-pipeline/.github/actions/build
+        with:
+          docker_context: ${{ inputs.docker_context }}
+          dockerfile: ${{ inputs.dockerfile_path }}
+          platforms: ${{ inputs.docker_platforms }}
+          container_registry: ${{ inputs.container_registry }}
+          repo_tag: ${{ needs.get-info.outputs.repo_tag }}
+          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry_username: ${{ secrets.REGISTRY_USERNAME }}
+          registry_password: ${{ secrets.REGISTRY_PASSWORD }}
+          push: 'true'
+          load: 'false'
+
+      - name: git tag
+        if: ${{ inputs.pipeline_mode != 'deploy_only' || inputs.security_test_options != '' }}
+        uses: ./.github/core-pipeline/.github/actions/tagging
+        with:
+          repo_tag: ${{ needs.get-info.outputs.repo_tag }}
+          tag_exists: ${{ needs.get-info.outputs.tag_exists }}
+  cd:
+    needs: [get-info, ci]
+    runs-on:
+      group: k8s-runners
+      labels: [self-hosted]
+    timeout-minutes: 30
+    steps:
+      - name: Checkout caller repo
+        uses: actions/checkout@v7
+        with: { fetch-depth: 0 }
+
+      - name: Checkout core-pipeline repo
+        uses: actions/checkout@v7
+        with:
+          repository: glauciolabs/core-pipeline
+          ref: feat/new-pipeline
+          path: .github/core-pipeline
+
+      - name: deploy with ${{ inputs.gitops_engine }}
+        if: ${{ inputs.pipeline_mode != 'build_only' || inputs.deploy == 'true' }}
+        uses: ./.github/core-pipeline/.github/actions/deploy
+        with:
+          argocd_server: ${{ secrets.ARGOCD_SERVER }}
+          argocd_token: ${{ secrets.ARGOCD_TOKEN }}
+          gitops_ssh_private_key: ${{ secrets.GITOPS_SSH_PRIVATE_KEY }}
+          repo_url: ${{ needs.get-info.outputs.repo_url }}
+          app_name: ${{ needs.get-info.outputs.app_name }}
+          app_project: ${{ needs.get-info.outputs.app_project }}
+          cluster_url: ${{ needs.get-info.outputs.cluster_url }}
+          argocd_project_namespace: ${{ needs.get-info.outputs.argocd_project_namespace }}
+          environment: ${{ needs.get-info.outputs.environment }}
+          kustomization_path: ${{ needs.get-info.outputs.kustomization_path }}
+          namespace: ${{ needs.get-info.outputs.namespace }}
+          repo_tag: ${{ needs.get-info.outputs.repo_tag }}
+          deployment_mode: ${{ inputs.argocd_deployment_mode }}
+          application_manifest_path: ${{ inputs.argocd_application_manifest }}

@@ -1,0 +1,92 @@
+name: "snyk tests"
+description: "run snyk security tests"
+inputs:
+  snyk_token:
+    description: "Snyk token"
+    required: true
+  snyk_debug:
+    description: "Snyk debug mode"
+    required: false
+    default: "false"
+  snyk_test:
+    description: "Snyk test type"
+    required: true
+    default: "code"
+  snyk_dockerfile_path:
+    description: "Dockerfile path"
+    required: false
+    default: "Dockerfile"
+  snyk_multi_dockerfile:
+    description: "Multi Dockerfile"
+    required: false
+    default: "false"
+  snyk_container_options:
+    description: "Container options"
+    required: false
+    default: ""
+  snyk_severity_threshold:
+    description: "Severity threshold"
+    required: false
+    default: "high"
+  snyk_additional_args:
+    description: "Additional args"
+    required: false
+    default: ""
+  snyk_fail_on_issues:
+    description: "Fail on issues"
+    required: false
+    default: "true"
+  snyk_enablemonitor:
+    description: "Enable monitor"
+    required: false
+    default: "true"
+  snyk_enable_report:
+    description: "Enable report"
+    required: false
+    default: "true"
+  snyk_reports_dir:
+    description: "Reports dir"
+    required: false
+    default: "reports/snyk"
+
+runs:
+  using: "composite"
+  steps:
+
+    - name: run snyk ${{ inputs.snyk_test }}
+      shell: bash
+      env:
+        GIT_ORGANIZATION_NAME: ${{ github.repository_owner }}
+        GIT_BRANCH_REF: ${{ github.ref_name }}
+        GIT_REPOSITORY_ID: ${{ github.repository_id }}
+        GIT_REPOSITORY_NAME: ${{ github.repository }}
+        SNYK_DEBUG: ${{ inputs.snyk_debug }}
+        SNYK_DOCKERFILE_PATH: ${{ inputs.snyk_dockerfile_path }}
+        SNYK_MULTI_DOCKERFILE: ${{ inputs.snyk_multi_dockerfile }}
+        SNYK_DOCKER_OPTIONS: ${{ inputs.snyk_container_options }}
+        SNYK_SEVERITY_THRESHOLD: ${{ inputs.snyk_severity_threshold }}
+        SNYK_ADDITIONAL_ARGS: ${{ inputs.snyk_additional_args }}
+        SNYK_FAIL_ON_ISSUES: ${{ inputs.snyk_fail_on_issues }}
+        SNYK_ENABLE_MONITOR: ${{ inputs.snyk_enablemonitor }}
+        SNYK_ENABLE_REPORT: ${{ inputs.snyk_enable_report }}
+        SNYK_REPORTS_DIR: ${{ inputs.snyk_reports_dir }}
+        SNYK_TOKEN: ${{ inputs.snyk_token }}
+        SNYK_TEST_NAME: ${{ inputs.snyk_test }}
+      run: $GITHUB_ACTION_PATH/../../../scripts/snyk-test.sh
+
+    - name: Check if SARIF exists
+      id: check_sarif
+      shell: bash
+      run: |
+        if [[ -f "${{ inputs.snyk_reports_dir }}/snyk.sarif" ]]; then
+          echo "exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Upload result to GitHub Code Scanning
+      if: steps.check_sarif.outputs.exists == 'true'
+      uses: github/codeql-action/upload-sarif@v3
+      continue-on-error: true
+      with:
+        sarif_file: ${{ inputs.snyk_reports_dir }}/snyk.sarif

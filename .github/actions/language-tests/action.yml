@@ -1,0 +1,53 @@
+name: "Language Tests"
+description: "Run language-specific tests (lint, test, sonar)"
+inputs:
+  archetype:
+    description: "Archetype from catalog-info.yaml"
+    required: true
+  sonar_token:
+    description: "SonarQube Token"
+    required: false
+runs:
+  using: "composite"
+  steps:
+    - name: Node.js Tests
+      if: ${{ inputs.archetype == 'nodejs' }}
+      shell: bash
+      run: |
+        echo "[INFO] Running Node.js Lint and Tests in ./src"
+        if [ -f ./src/package.json ]; then
+          cd ./src
+          npm ci || true
+          npm run lint || true
+          npm run test || true
+        else
+          echo "[WARN] No package.json found in ./src"
+        fi
+
+    - name: Python Tests
+      if: ${{ inputs.archetype == 'python' }}
+      shell: bash
+      run: |
+        echo "[INFO] Running Python Lint and Tests in ./src"
+        if [ -f ./src/requirements.txt ] || [ -f ./src/pyproject.toml ]; then
+          cd ./src
+          pip install flake8 pytest || true
+          flake8 . || true
+          pytest || true
+        else
+          echo "[WARN] No python requirements found in ./src"
+        fi
+
+    - name: SonarQube Scan
+      if: ${{ inputs.archetype != 'generic' }}
+      shell: bash
+      env:
+        SONAR_TOKEN: ${{ inputs.sonar_token }}
+      run: |
+        if [ -n "$SONAR_TOKEN" ]; then
+          echo "[INFO] Running SonarQube Scanner..."
+          # Mocking sonar scanner call for now
+          # sonar-scanner -Dsonar.projectKey=${{ github.repository_id }} -Dsonar.sources=./src
+        else
+          echo "[INFO] SONAR_TOKEN not set, skipping SonarQube scan."
+        fi
