@@ -28,7 +28,11 @@ if [[ "${delivery_mode}" == "declarative" ]]; then
 
   if [[ -n "${GITOPS_REPO_URL:-}" ]]; then
     echo "[INFO] GitOps repository configured. Promoting revision by Git commit."
-    "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gitops_promote.sh"
+    if [[ "${DEPLOYMENT_MODE:-kustomize}" == "kustomize" ]]; then
+      "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gitops_kustomize_promote.sh"
+    else
+      "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gitops_promote.sh"
+    fi
   else
     echo "[INFO] Publish/tag completed. Promotion must happen in the GitOps environment repository."
   fi

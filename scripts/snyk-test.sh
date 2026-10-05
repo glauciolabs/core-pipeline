@@ -69,6 +69,13 @@ case "${snyk_test_name}" in
   "container")
     snyk_container_test
     ;;
+  "all")
+    echo "[INFO] Running ALL Snyk tests (open-source, iac, code, container)..."
+    SNYK_REPORTS_DIR="${SNYK_REPORTS_DIR}/open-source" snyk_open_source_test || true
+    SNYK_REPORTS_DIR="${SNYK_REPORTS_DIR}/iac" snyk_iac_test || true
+    SNYK_REPORTS_DIR="${SNYK_REPORTS_DIR}/code" snyk_code_test || true
+    SNYK_REPORTS_DIR="${SNYK_REPORTS_DIR}/container" snyk_container_test || true
+    ;;
 esac
 
 if [[ "${SNYK_ENABLE_REPORT:-true}" == "true" && -f "${SNYK_REPORTS_DIR}/snyk.sarif" ]]; then
