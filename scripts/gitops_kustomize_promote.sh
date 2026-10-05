@@ -3,7 +3,15 @@ set -euo pipefail
 
 app_full="${GITOPS_APPLICATION_NAME:-${APP_NAME}-${ENVIRONMENT}}"
 gitops_repo_url="${GITOPS_REPO_URL:-}"
-gitops_repo_branch="${GITOPS_REPO_BRANCH:-}"
+if [[ -z "${GITOPS_REPO_BRANCH:-}" ]]; then
+  if [[ "${ENVIRONMENT:-develop}" == "production" ]]; then
+    gitops_repo_branch="master"
+  else
+    gitops_repo_branch="develop"
+  fi
+else
+  gitops_repo_branch="${GITOPS_REPO_BRANCH}"
+fi
 manifest_override="${GITOPS_APPLICATION_MANIFEST_PATH:-}"
 
 if [[ -z "${gitops_repo_url}" ]]; then
