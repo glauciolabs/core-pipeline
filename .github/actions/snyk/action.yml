@@ -12,6 +12,14 @@ inputs:
     description: "Snyk test type"
     required: true
     default: "code"
+  archetype:
+    description: "Application archetype"
+    required: false
+    default: "generic"
+  snyk_test_override:
+    description: "Override snyk test"
+    required: false
+    default: ""
   snyk_dockerfile_path:
     description: "Dockerfile path"
     required: false
@@ -72,6 +80,8 @@ runs:
         SNYK_REPORTS_DIR: ${{ inputs.snyk_reports_dir }}
         INPUT_SNYK_TOKEN: ${{ inputs.snyk_token }}
         SNYK_TEST_NAME: ${{ inputs.snyk_test }}
+        ARCHETYPE: ${{ inputs.archetype }}
+        SNYK_TEST_OVERRIDE: ${{ inputs.snyk_test_override }}
       run: $GITHUB_ACTION_PATH/../../../scripts/snyk-test.sh
 
     - name: Check if SARIF exists

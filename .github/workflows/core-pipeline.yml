@@ -218,7 +218,9 @@ jobs:
         uses: ./.github/core-pipeline/.github/actions/snyk
         with:
           snyk_token: ${{ secrets.SNYK_TOKEN }}
-          snyk_test: ${{ inputs.snyk_test_override != '' && inputs.snyk_test_override || ((inputs.workflow_type == 'containers' && inputs.pipeline_mode != 'deploy_only') && 'container' || 'code') }}
+          snyk_test: ${{ (inputs.workflow_type == 'containers' && inputs.pipeline_mode != 'deploy_only') && 'container' || 'code' }}
+          archetype: ${{ needs.get-info.outputs.archetype }}
+          snyk_test_override: ${{ inputs.snyk_test_override }}
           snyk_dockerfile_path: ${{ inputs.dockerfile_path || 'Dockerfile' }}
           snyk_additional_args: ${{ (inputs.workflow_type == 'containers' && inputs.pipeline_mode != 'deploy_only') && steps.build-app.outputs.image_name || '' }}
           snyk_container_options: ${{ inputs.docker_options }}

@@ -52,7 +52,23 @@ snyk_container_test() {
 
 mkdir -p "${SNYK_REPORTS_DIR}"
 
-snyk_test_name="${SNYK_TEST_NAME:-code}"
+snyk_test_name="${SNYK_TEST_OVERRIDE:-${SNYK_TEST_NAME:-code}}"
+
+if [[ "${snyk_test_name}" == "code" && "${ARCHETYPE:-}" == "container" ]]; then
+  echo "[INFO] Archetype is container and no test override. Falling back to container scan."
+  snyk_test_name="container"
+fi
+
+if [[ "${snyk_test_name}" == "container" && "${ARCHETYPE:-}" == "container" ]]; then
+  if [[ -z "${SNYK_ADDITIONAL_ARGS:-}" ]]; then
+    echo "[INFO] Archetype is container, passing target image explicitly from repository name."
+    # We default to dockerhub username or ghcr.io based image if we are in deploy_only
+    SNYK_ADDITIONAL_ARGS="${GIT_ORGANIZATION_NAME}/${GIT_REPOSITORY_NAME#*/}"
+    echo "[INFO] Target image inferred as: ${SNYK_ADDITIONAL_ARGS}"
+  fi
+  SNYK_ADDITIONAL_ARGS="--exclude-app-vulns ${SNYK_ADDITIONAL_ARGS}"
+fi
+
 echo "[INFO] Running ${snyk_test_name} Scan..."
 
 snyk_scan_exit=0
