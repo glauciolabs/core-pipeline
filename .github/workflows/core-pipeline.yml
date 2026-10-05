@@ -55,6 +55,27 @@ on:
         type: choice
         options: [trivy, snyk, both]
         default: both
+      snyk_test_override:
+        type: string
+        required: false
+        default: ""
+      delivery_mode:
+        type: choice
+        options: [self-service, declarative]
+        required: false
+        default: self-service
+      gitops_repo_url:
+        type: string
+        required: false
+        default: ""
+      gitops_repo_branch:
+        type: string
+        required: false
+        default: ""
+      gitops_application_manifest_path:
+        type: string
+        required: false
+        default: ""
 
   workflow_call:
     inputs:
@@ -71,6 +92,11 @@ on:
       docker_platforms: { type: string, default: "linux/amd64" }
       snyk_fail_on_issues: { type: string, default: "true" }
       security_test_options: { type: string, default: "both" }
+      snyk_test_override: { type: string, default: "" }
+      delivery_mode: { type: string, default: "self-service" }
+      gitops_repo_url: { type: string, default: "" }
+      gitops_repo_branch: { type: string, default: "" }
+      gitops_application_manifest_path: { type: string, default: "" }
     secrets:
       DOCKERHUB_USERNAME: { required: false }
       DOCKERHUB_TOKEN: { required: false }
@@ -192,7 +218,7 @@ jobs:
         uses: ./.github/core-pipeline/.github/actions/snyk
         with:
           snyk_token: ${{ secrets.SNYK_TOKEN }}
-          snyk_test: ${{ (inputs.workflow_type == 'containers' && inputs.pipeline_mode != 'deploy_only') && 'container' || 'code' }}
+          snyk_test: ${{ inputs.snyk_test_override != '' && inputs.snyk_test_override || ((inputs.workflow_type == 'containers' && inputs.pipeline_mode != 'deploy_only') && 'container' || 'code') }}
           snyk_dockerfile_path: ${{ inputs.dockerfile_path || 'Dockerfile' }}
           snyk_additional_args: ${{ (inputs.workflow_type == 'containers' && inputs.pipeline_mode != 'deploy_only') && steps.build-app.outputs.image_name || '' }}
           snyk_container_options: ${{ inputs.docker_options }}
@@ -264,3 +290,7 @@ jobs:
           repo_tag: ${{ needs.get-info.outputs.repo_tag }}
           deployment_mode: ${{ inputs.argocd_deployment_mode }}
           application_manifest_path: ${{ inputs.argocd_application_manifest }}
+          delivery_mode: ${{ inputs.delivery_mode }}
+          gitops_repo_url: ${{ inputs.gitops_repo_url }}
+          gitops_repo_branch: ${{ inputs.gitops_repo_branch }}
+          gitops_application_manifest_path: ${{ inputs.gitops_application_manifest_path }}
