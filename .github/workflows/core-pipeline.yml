@@ -207,8 +207,8 @@ jobs:
           repo_tag: ${{ needs.get-info.outputs.repo_tag }}
           dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
-          registry_username: ${{ secrets.REGISTRY_USERNAME }}
-          registry_password: ${{ secrets.REGISTRY_PASSWORD }}
+          registry_username: ${{ secrets.REGISTRY_USERNAME || github.actor }}
+          registry_password: ${{ secrets.REGISTRY_PASSWORD || secrets.GITHUB_TOKEN }}
           push: 'false'
           load: 'true'
 
@@ -245,8 +245,8 @@ jobs:
           repo_tag: ${{ needs.get-info.outputs.repo_tag }}
           dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
-          registry_username: ${{ secrets.REGISTRY_USERNAME }}
-          registry_password: ${{ secrets.REGISTRY_PASSWORD }}
+          registry_username: ${{ secrets.REGISTRY_USERNAME || github.actor }}
+          registry_password: ${{ secrets.REGISTRY_PASSWORD || secrets.GITHUB_TOKEN }}
           push: 'true'
           load: 'false'
 
