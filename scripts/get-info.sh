@@ -30,7 +30,7 @@ run_yq() {
 
 org_name="${GITHUB_REPOSITORY_OWNER:-unknown}"
 repo_full="${GITHUB_REPOSITORY:-unknown/unknown}"
-repo_url="git@github.com:${repo_full}.git"
+repo_url="https://github.com/${repo_full}.git"
 
 if [[ "$INFO_FILE" == "catalog-info.yaml" ]]; then
   app_name=$(run_yq -r '.metadata.name' "$INFO_FILE")
