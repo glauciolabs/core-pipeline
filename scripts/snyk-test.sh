@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SNYK_TOKEN="${INPUT_SNYK_TOKEN:-${SNYK_TOKEN:-}}"
 
 if [[ -z "${SNYK_TOKEN:-}" ]]; then
   echo "[ERROR] SNYK_TOKEN is required for snyk ${SNYK_TEST_NAME:-}."
