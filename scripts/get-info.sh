@@ -38,12 +38,18 @@ if [[ "$INFO_FILE" == "catalog-info.yaml" ]]; then
   namespace=$(run_yq -r '.metadata.namespace // .metadata.name' "$INFO_FILE")
   repo_tag_base=$(run_yq -r '.metadata.annotations."backstage.io/version" // .metadata.annotations."app.version" // "v0.1.0"' "$INFO_FILE")
   archetype=$(run_yq -r '.metadata.annotations."glauciolabs.com/archetype" // "generic"' "$INFO_FILE")
+  delivery_mode=$(run_yq -r '.metadata.annotations."glauciolabs.com/delivery_mode" // "declarative"' "$INFO_FILE")
+  deployment_mode=$(run_yq -r '.metadata.annotations."glauciolabs.com/deployment_mode" // "kustomize"' "$INFO_FILE")
+  gitops_engine=$(run_yq -r '.metadata.annotations."glauciolabs.com/gitops_engine" // "argocd"' "$INFO_FILE")
 else
   app_name=$(run_yq -r '.app.name' "$INFO_FILE")
   app_project=$(run_yq -r '.app.project' "$INFO_FILE")
   namespace=$(run_yq -r '.app.namespace' "$INFO_FILE")
   repo_tag_base=$(run_yq -r '.app.version' "$INFO_FILE")
   archetype="generic"
+  delivery_mode="declarative"
+  deployment_mode="kustomize"
+  gitops_engine="argocd"
 fi
 commit_id=$(git rev-parse --short HEAD)
 
@@ -104,6 +110,11 @@ fi
   echo "last_tag_prefix=${last_tag_prefix}"
   echo "last_tag=${last_tag}"
   echo "archetype=${archetype}"
+  echo "gitops_repo_url=git@github.com:glauciolabs/k8s-platform-templates.git"
+  echo "gitops_application_manifest_path=apps/${app_name}/${environment}/kustomization.yaml"
+  echo "delivery_mode=${delivery_mode}"
+  echo "deployment_mode=${deployment_mode}"
+  echo "gitops_engine=${gitops_engine}"
 } >> "${GITHUB_OUTPUT}"
 
 {

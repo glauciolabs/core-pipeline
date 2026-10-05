@@ -49,6 +49,21 @@ outputs:
   archetype:
     description: "archetype"
     value: ${{ steps.extract.outputs.archetype }}
+  gitops_repo_url:
+    description: "gitops_repo_url"
+    value: ${{ steps.extract.outputs.gitops_repo_url }}
+  gitops_application_manifest_path:
+    description: "gitops_application_manifest_path"
+    value: ${{ steps.extract.outputs.gitops_application_manifest_path }}
+  delivery_mode:
+    description: "delivery mode"
+    value: ${{ steps.extract.outputs.delivery_mode }}
+  deployment_mode:
+    description: "deployment mode"
+    value: ${{ steps.extract.outputs.deployment_mode }}
+  gitops_engine:
+    description: "gitops engine"
+    value: ${{ steps.extract.outputs.gitops_engine }}
 
 inputs:
   namespace_override:

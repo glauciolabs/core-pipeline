@@ -321,9 +321,9 @@ jobs:
           kustomization_path: ${{ needs.get-info.outputs.kustomization_path }}
           namespace: ${{ needs.get-info.outputs.namespace }}
           repo_tag: ${{ needs.get-info.outputs.repo_tag }}
-          deployment_mode: ${{ inputs.argocd_deployment_mode }}
+          deployment_mode: ${{ needs.get-info.outputs.deployment_mode || inputs.argocd_deployment_mode }}
           application_manifest_path: ${{ inputs.argocd_application_manifest }}
-          delivery_mode: ${{ inputs.delivery_mode }}
-          gitops_repo_url: ${{ inputs.gitops_repo_url }}
+          delivery_mode: ${{ needs.get-info.outputs.delivery_mode || inputs.delivery_mode }}
+          gitops_repo_url: ${{ needs.get-info.outputs.gitops_repo_url || inputs.gitops_repo_url }}
           gitops_repo_branch: ${{ inputs.gitops_repo_branch }}
-          gitops_application_manifest_path: ${{ inputs.gitops_application_manifest_path }}
+          gitops_application_manifest_path: ${{ needs.get-info.outputs.gitops_application_manifest_path || inputs.gitops_application_manifest_path }}
