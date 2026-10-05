@@ -166,6 +166,11 @@ jobs:
 
   ci:
     needs: get-info
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      security-events: write
     runs-on:
       group: k8s-runners
       labels: [self-hosted]
@@ -249,6 +254,16 @@ jobs:
           push: 'true'
           load: 'false'
 
+      - name: Install Cosign
+        if: ${{ inputs.pipeline_mode != 'deploy_only' && inputs.workflow_type == 'containers' }}
+        uses: sigstore/cosign-installer@v3.5.0
+
+      - name: Sign container image
+        if: ${{ inputs.pipeline_mode != 'deploy_only' && inputs.workflow_type == 'containers' }}
+        run: |
+          echo "[INFO] Signing image with Cosign Keyless..."
+          cosign sign --yes ${{ steps.build-app.outputs.image_name }}
+
       - name: snyk monitor (post delivery)
         if: ${{ inputs.pipeline_mode != 'deploy_only' && (inputs.security_test_options == 'snyk' || inputs.security_test_options == 'both') }}
         env:
@@ -256,7 +271,7 @@ jobs:
         run: |
           echo "[INFO] Running Snyk monitor for portal update..."
           if [[ "${{ inputs.workflow_type }}" == "containers" ]]; then
-            npx snyk container monitor ${{ steps.build-app.outputs.image_name }}:${{ needs.get-info.outputs.repo_tag }} --project-name=${{ github.repository }} || true
+            npx snyk container monitor ${{ steps.build-app.outputs.image_name }} --project-name=${{ github.repository }} || true
           else
             npx snyk monitor --project-name=${{ github.repository }} || true
           fi
