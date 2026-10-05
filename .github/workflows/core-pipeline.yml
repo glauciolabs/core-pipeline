@@ -111,6 +111,8 @@ on:
       GITOPS_SSH_PRIVATE_KEY: { required: false }
       CLUSTER_DEVELOP: { required: false }
       CLUSTER_PRODUCTION: { required: false }
+      TELEGRAM_BOT_TOKEN: { required: false }
+      TELEGRAM_CHAT_ID: { required: false }
 
 concurrency:
   group: core-pipeline-${{ github.workflow }}-${{ github.ref }}
