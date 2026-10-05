@@ -8,12 +8,6 @@ if [[ -z "${SNYK_TOKEN:-}" ]]; then
   exit 1
 fi
 
-snyk_monitor_arg=""
-if [[ "${SNYK_ENABLE_MONITOR:-false}" == "true" && "${GIT_BRANCH_REF:-}" =~ ^(main|release|v[0-9]+.*)$ ]]; then
-  echo "[INFO] snyk monitor is enabled"
-  snyk_monitor_arg="monitor"
-fi
-
 snyk_iac_test() {
   npx snyk iac test \
   --severity-threshold="${SNYK_SEVERITY_THRESHOLD:-low}" \
@@ -21,12 +15,6 @@ snyk_iac_test() {
 }
 
 snyk_open_source_test() {
-  if [[ -n "$snyk_monitor_arg" ]]; then
-    npx snyk "$snyk_monitor_arg" \
-      --project-name="${GIT_REPOSITORY_NAME:-}" \
-      --severity-threshold="${SNYK_SEVERITY_THRESHOLD:-low}" \
-      ${SNYK_ADDITIONAL_ARGS:-} || snyk_scan_exit=$?
-  fi
   npx snyk test \
   --project-name="${GIT_REPOSITORY_NAME:-}" \
   --severity-threshold="${SNYK_SEVERITY_THRESHOLD:-low}" \
@@ -40,11 +28,6 @@ snyk_code_test() {
 }
 
 snyk_container_test() {
-  if [[ -n "$snyk_monitor_arg" ]]; then
-    npx snyk container "$snyk_monitor_arg" \
-      --severity-threshold="${SNYK_SEVERITY_THRESHOLD:-low}" \
-      ${SNYK_ADDITIONAL_ARGS:-} || snyk_scan_exit=$?
-  fi
   npx snyk container test \
     --severity-threshold="${SNYK_SEVERITY_THRESHOLD:-low}" \
     --sarif-file-output="${SNYK_REPORTS_DIR}/snyk.sarif" ${SNYK_ADDITIONAL_ARGS:-} || snyk_scan_exit=$?

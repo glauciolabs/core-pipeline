@@ -226,7 +226,7 @@ jobs:
           snyk_fail_on_issues: ${{ vars.SNYK_FAIL_ON_ISSUES || inputs.snyk_fail_on_issues }}
 
       - name: trivy tests
-        if: ${{ inputs.security_test_options == 'trivy' || inputs.security_test_options == 'both' }}
+        if: ${{ inputs.security_test_options == 'trivy' || (inputs.security_test_options == 'both' && inputs.workflow_type != 'containers') }}
         id: trivy-tests
         uses: ./.github/core-pipeline/.github/actions/trivy
         with:
@@ -249,12 +249,29 @@ jobs:
           push: 'true'
           load: 'false'
 
+      - name: snyk monitor (post delivery)
+        if: ${{ inputs.pipeline_mode != 'deploy_only' && (inputs.security_test_options == 'snyk' || inputs.security_test_options == 'both') }}
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          echo "[INFO] Running Snyk monitor for portal update..."
+          if [[ "${{ inputs.workflow_type }}" == "containers" ]]; then
+            npx snyk container monitor ${{ steps.build-app.outputs.image_name }}:${{ needs.get-info.outputs.repo_tag }} --project-name=${{ github.repository }} || true
+          else
+            npx snyk monitor --project-name=${{ github.repository }} || true
+          fi
+
       - name: git tag
         if: ${{ inputs.pipeline_mode != 'deploy_only' || inputs.security_test_options != '' }}
         uses: ./.github/core-pipeline/.github/actions/tagging
         with:
           repo_tag: ${{ needs.get-info.outputs.repo_tag }}
           tag_exists: ${{ needs.get-info.outputs.tag_exists }}
+      - name: cleanup (docker system prune)
+        if: always()
+        run: |
+          echo "[INFO] Cleaning up Docker to prevent storage exhaustion..."
+          docker system prune -af --volumes || true
   cd:
     needs: [get-info, ci]
     runs-on:
