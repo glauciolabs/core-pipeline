@@ -95,8 +95,8 @@ runs:
 
       shell: bash
       env:
-        ARGOCD_SERVER: ${{ inputs.argocd_server }}
-        ARGOCD_TOKEN: ${{ inputs.argocd_token }}
+        ACTION_ARGOCD_SERVER: ${{ inputs.argocd_server }}
+        ACTION_ARGOCD_TOKEN: ${{ inputs.argocd_token }}
         GITOPS_SSH_PRIVATE_KEY: ${{ inputs.gitops_ssh_private_key }}
         REPO_URL: ${{ inputs.repo_url }}
         APP_NAME: ${{ inputs.app_name }}
@@ -108,8 +108,8 @@ runs:
 
       shell: bash
       env:
-        ARGOCD_SERVER: ${{ inputs.argocd_server }}
-        ARGOCD_TOKEN: ${{ inputs.argocd_token }}
+        ACTION_ARGOCD_SERVER: ${{ inputs.argocd_server }}
+        ACTION_ARGOCD_TOKEN: ${{ inputs.argocd_token }}
         APP_PROJECT: ${{ inputs.app_project }}
         CLUSTER_URL: ${{ inputs.cluster_url }}
         ARGOCD_PROJECT_NAMESPACE: ${{ inputs.argocd_project_namespace }}
@@ -122,8 +122,8 @@ runs:
     - name: Argo CD - ensure app
       shell: bash
       env:
-        ARGOCD_SERVER: ${{ inputs.argocd_server }}
-        ARGOCD_TOKEN: ${{ inputs.argocd_token }}
+        ACTION_ARGOCD_SERVER: ${{ inputs.argocd_server }}
+        ACTION_ARGOCD_TOKEN: ${{ inputs.argocd_token }}
         APP_NAME: ${{ inputs.app_name }}
         ENVIRONMENT: ${{ inputs.environment }}
         REPO_URL: ${{ inputs.repo_url }}

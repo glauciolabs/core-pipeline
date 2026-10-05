@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ARGOCD_SERVER="${ACTION_ARGOCD_SERVER:-${ARGOCD_SERVER:-}}"
+ARGOCD_TOKEN="${ACTION_ARGOCD_TOKEN:-${ARGOCD_TOKEN:-}}"
 ssh_args=()
 if [[ -n "${GITOPS_SSH_PRIVATE_KEY}" ]]; then
   key_file="/tmp/gitops_ssh_key"

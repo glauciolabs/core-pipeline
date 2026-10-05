@@ -81,9 +81,6 @@ esac
 if [[ "${SNYK_ENABLE_REPORT:-true}" == "true" && -f "${SNYK_REPORTS_DIR}/snyk.sarif" ]]; then
   echo "[INFO] Generating HTML report..."
   npx snyk-to-html -i "${SNYK_REPORTS_DIR}/snyk.sarif" -o "${SNYK_REPORTS_DIR}/snyk.html" || echo "[WARN] HTML generation failed."
-  
-  echo "[INFO] Generating Markdown report for GitHub Step Summary..."
-  python3 "$(dirname "$0")/snyk_to_markdown.py" "${SNYK_REPORTS_DIR}/snyk.sarif" || echo "[WARN] Markdown generation failed."
 fi
 
 if [[ "${SNYK_FAIL_ON_ISSUES:-true}" == "true" && $snyk_scan_exit -ne 0 ]]; then

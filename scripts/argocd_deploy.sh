@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ARGOCD_SERVER="${ACTION_ARGOCD_SERVER:-${ARGOCD_SERVER:-}}"
+ARGOCD_TOKEN="${ACTION_ARGOCD_TOKEN:-${ARGOCD_TOKEN:-}}"
 app_full="${APP_NAME}-${ENVIRONMENT}"
 project="${APP_PROJECT:-${APP_NAME}}"
 cluster_url="${CLUSTER_URL:-}"
