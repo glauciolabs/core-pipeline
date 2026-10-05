@@ -91,6 +91,8 @@ runs:
       run: $GITHUB_ACTION_PATH/../../../scripts/install_argocd.sh
 
     - name: Argo CD - ensure repo
+      if: ${{ inputs.delivery_mode != 'declarative' }}
+
       shell: bash
       env:
         ARGOCD_SERVER: ${{ inputs.argocd_server }}
@@ -102,6 +104,8 @@ runs:
       run: $GITHUB_ACTION_PATH/../../../scripts/argocd_repo.sh
 
     - name: Argo CD - ensure project (with fallback)
+      if: ${{ inputs.delivery_mode != 'declarative' }}
+
       shell: bash
       env:
         ARGOCD_SERVER: ${{ inputs.argocd_server }}
