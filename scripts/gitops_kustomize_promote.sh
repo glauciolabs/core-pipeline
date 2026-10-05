@@ -55,7 +55,7 @@ echo "[INFO] Updating image tag to ${REPO_TAG} in ${manifest_override}"
 cd "$(dirname "${manifest_path}")"
 # Assuming the base image name matches APP_NAME, but kustomize allows editing by name.
 # To be robust, if we know the image name, we use it, otherwise we could do a generic replace or pass IMAGE_NAME
-image_name="${CONTAINER_REGISTRY}/${APP_NAME}"
+image_name="${CONTAINER_REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY}"
 # using kustomize edit set image
 kustomize edit set image "${image_name}=${image_name}:${REPO_TAG}" || true
 
