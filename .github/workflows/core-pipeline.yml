@@ -186,7 +186,6 @@ jobs:
         if: ${{ inputs.pipeline_mode != 'deploy_only' }}
         run: |
           echo "[INFO] Running Semgrep for secrets and certificates..."
-          python3 -m pip install semgrep
           semgrep scan --config="p/secrets" --config="p/certificates" --error || true
           
       - name: language tests and lint
